@@ -14,14 +14,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Dies checkt das Repo in $GITHUB_WORKSPACE/Cloning-App aus,
-        # also nach /home/runner/work/Cloning-App/Cloning-App/
+        # Checkt den Code direkt in GITHUB_WORKSPACE aus.
+        # GITHUB_WORKSPACE ist /home/runner/work/Cloning-App/Cloning-App
 
-      - name: List files for diagnosis (optional, aber hilfreich zur Bestätigung)
+      - name: List files in GITHUB_WORKSPACE for diagnosis
         run: |
           echo "GITHUB_WORKSPACE is: ${{ github.workspace }}"
-          echo "Project root should be: ${{ github.workspace }}/Cloning-App"
-          ls -R ${{ github.workspace }}/Cloning-App
+          echo "Listing files in GITHUB_WORKSPACE:"
+          ls -Al ${{ github.workspace }} # -A zeigt auch versteckte Dateien, l für langes Format
 
       - name: Set up JDK 11
         uses: actions/setup-java@v4
@@ -29,32 +29,27 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
           cache: gradle
-          # Der Basis-Suchpfad für diese Muster ist laut Fehler:
-          # /home/runner/work/Cloning-App/Cloning-App/
-          # Daher müssen die Muster relativ zu diesem Pfad sein.
+          # Die Muster sind relativ zum GITHUB_WORKSPACE.
+          # Da GITHUB_WORKSPACE bereits /home/runner/work/Cloning-App/Cloning-App ist
+          # und die Gradle-Dateien direkt darin liegen:
           cache-dependency-path: |
             **/*.gradle*
             **/gradle-wrapper.properties
-            **/gradle/libs.versions.toml  # Für Gradle Version Catalogs
-            **/versions.properties        # Für versions.properties
-            # Spezifischer, falls die obigen zu gierig sind und Fehler verursachen:
-            # build.gradle
-            # settings.gradle
-            # app/build.gradle  # Wenn du ein 'app'-Modul hast und dessen gradle-Datei relevant ist
-            # gradle/wrapper/gradle-wrapper.properties
+            **/gradle/libs.versions.toml
+            **/versions.properties
 
       - name: Grant execute permission for gradlew
-        # Das Arbeitsverzeichnis ist das tatsächliche Projekt-Stammverzeichnis
-        working-directory: ${{ github.workspace }}/Cloning-App
+        # working-directory ist GITHUB_WORKSPACE (Standard, kann auch weggelassen werden)
+        working-directory: ${{ github.workspace }}
         run: chmod +x ./gradlew
 
       - name: Build debug APK
-        working-directory: ${{ github.workspace }}/Cloning-App
+        working-directory: ${{ github.workspace }}
         run: ./gradlew assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: cloning-app-debug-apk
-          # Der Pfad zum Artefakt ist relativ zum GITHUB_WORKSPACE
-          path: ${{ github.workspace }}/Cloning-App/app/build/outputs/apk/debug/app-debug.apk
+          # Pfad ist relativ zum GITHUB_WORKSPACE
+          path: ${{ github.workspace }}/app/build/outputs/apk/debug/app-debug.apk
