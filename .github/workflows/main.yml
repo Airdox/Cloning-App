@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Checkt den Code (inklusive voice_cloning_app.zip) in GITHUB_WORKSPACE aus.
-        # GITHUB_WORKSPACE ist /home/runner/work/Cloning-App/Cloning-App
 
       - name: Verify ZIP file presence
         id: zip_check
@@ -30,28 +28,68 @@ jobs:
           fi
         shell: bash
 
-      - name: Unzip the Android project
+      - name: Inspect and Unzip the Android project
         if: steps.zip_check.outputs.zip_present == 'true'
         run: |
-          echo "Unzipping voice_cloning_app.zip..."
-          unzip -q ${{ github.workspace }}/voice_cloning_app.zip -d ${{ github.workspace }}/android_project
-          echo "--- Listing contents of unzipped android_project directory ---"
-          ls -Al ${{ github.workspace }}/android_project
-          # Optional: Verschiebe den Inhalt, wenn das Projekt im ZIP-Archiv in einem Unterordner liegt
-          # Beispiel: Wenn im ZIP alles unter "Cloning-App-master/" liegt:
-          # if [ -d "${{ github.workspace }}/android_project/Cloning-App-master" ]; then
-          #   echo "Moving contents from Cloning-App-master..."
-          #   mv ${{ github.workspace }}/android_project/Cloning-App-master/* ${{ github.workspace }}/android_project/
-          #   rm -rf ${{ github.workspace }}/android_project/Cloning-App-master
-          #   echo "--- Listing contents of android_project directory after potential move ---"
-          #   ls -Al ${{ github.workspace }}/android_project
-          # fi
+          ZIP_FILE="${{ github.workspace }}/voice_cloning_app.zip"
+          EXTRACT_DIR="${{ github.workspace }}/android_project_extracted" # Neues Entpack-Verzeichnis
+
+          echo "--- Listing contents of ZIP file ($ZIP_FILE) ---"
+          unzip -l "$ZIP_FILE" # -l listet den Inhalt auf
+
+          echo "--- Unzipping $ZIP_FILE to $EXTRACT_DIR ---"
+          mkdir -p "$EXTRACT_DIR" # Sicherstellen, dass das Verzeichnis existiert
+          unzip -q "$ZIP_FILE" -d "$EXTRACT_DIR"
+
+          echo "--- Listing contents of extraction directory ($EXTRACT_DIR) ---"
+          ls -AlR "$EXTRACT_DIR" # -R für rekursive Auflistung
+
+          # HIER MUSST DU DIE PFADE ANPASSEN, basierend auf der Ausgabe von `unzip -l`
+          # und `ls -AlR "$EXTRACT_DIR"`
+          #
+          # Beispiel 1: Wenn die Dateien in $EXTRACT_DIR/Cloning-App-master/ sind:
+          # ACTUAL_PROJECT_ROOT="$EXTRACT_DIR/Cloning-App-master"
+          #
+          # Beispiel 2: Wenn die Dateien in $EXTRACT_DIR/home/username/Cloning-App/ sind:
+          # ACTUAL_PROJECT_ROOT="$EXTRACT_DIR/home/username/Cloning-App" # Ersetze username
+          #
+          # Beispiel 3: Wenn die Dateien direkt in $EXTRACT_DIR/ (unwahrscheinlich nach letztem Fehler)
+          # ACTUAL_PROJECT_ROOT="$EXTRACT_DIR"
+
+          # Setze dies basierend auf deiner ZIP-Struktur. Fürs Erste nehmen wir an, es ist ein Unterordner.
+          # Du musst diesen Pfad wahrscheinlich anpassen!
+          # Versuche herauszufinden, wo build.gradle, gradlew etc. tatsächlich liegen.
+          # Fürs Debugging, kommentiere die Zeile unten aus und schaue dir die Logs an.
+          ACTUAL_PROJECT_ROOT="$EXTRACT_DIR" # Standardannahme, wird wahrscheinlich fehlschlagen
+
+          # Finde den tatsächlichen Projektstamm (optional, aber hilfreich)
+          # Ersetze 'build.gradle' mit einem anderen eindeutigen Dateinamen, falls nötig
+          FOUND_PROJECT_DIR=$(find "$EXTRACT_DIR" -name 'build.gradle' -printf '%h' -quit)
+
+          if [ -n "$FOUND_PROJECT_DIR" ]; then
+            echo "Found build.gradle in: $FOUND_PROJECT_DIR"
+            ACTUAL_PROJECT_ROOT="$FOUND_PROJECT_DIR"
+            echo "Actual project root set to: $ACTUAL_PROJECT_ROOT"
+          else
+            echo "WARNING: build.gradle not automatically found. Using default: $ACTUAL_PROJECT_ROOT"
+            echo "Please check the ZIP structure and adjust ACTUAL_PROJECT_ROOT in the workflow."
+          fi
+
+          # Erstelle einen Symlink oder verschiebe Dateien, um eine konsistente Struktur zu haben
+          # Ziel ist, dass `${{ github.workspace }}/android_project` der Stamm des Android-Projekts ist.
+          TARGET_PROJECT_DIR="${{ github.workspace }}/android_project"
+          rm -rf "$TARGET_PROJECT_DIR" # Altes Verzeichnis entfernen, falls vorhanden
+          ln -s "$ACTUAL_PROJECT_ROOT" "$TARGET_PROJECT_DIR" # Symlink erstellen
+          # Alternativ: mv "$ACTUAL_PROJECT_ROOT"/* "$TARGET_PROJECT_DIR/" (wenn du kopieren/verschieben willst)
+
+          echo "--- Listing contents of final android_project directory ($TARGET_PROJECT_DIR) ---"
+          ls -Al "$TARGET_PROJECT_DIR"
         shell: bash
 
+      # Die restlichen Schritte bleiben gleich, da sie sich auf `${{ github.workspace }}/android_project` beziehen
       - name: Verify Gradle files after unzip
         id: gradle_file_check
         if: steps.zip_check.outputs.zip_present == 'true'
-        # Das Arbeitsverzeichnis für die Überprüfung muss das Verzeichnis sein, in das entpackt wurde
         working-directory: ${{ github.workspace }}/android_project
         run: |
           echo "--- Verifying Gradle files in $(pwd) ---"
@@ -73,8 +111,6 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
           cache: gradle
-          # WICHTIG: Der Pfad für cache-dependency-path muss jetzt auf das Unterverzeichnis zeigen,
-          # in das entpackt wurde, relativ zum GITHUB_WORKSPACE.
           cache-dependency-path: android_project/**/*.gradle*
             android_project/**/gradle-wrapper.properties
             android_project/**/gradle/libs.versions.toml
@@ -82,7 +118,6 @@ jobs:
 
       - name: Grant execute permission for gradlew
         if: steps.gradle_file_check.outputs.files_present == 'true'
-        # Das Arbeitsverzeichnis muss das Verzeichnis sein, in das entpackt wurde
         working-directory: ${{ github.workspace }}/android_project
         run: chmod +x ./gradlew
 
@@ -96,5 +131,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cloning-app-debug-apk
-          # Der Pfad zur APK ist nun relativ zum GITHUB_WORKSPACE und dem Entpack-Verzeichnis
           path: ${{ github.workspace }}/android_project/app/build/outputs/apk/debug/app-debug.apk
