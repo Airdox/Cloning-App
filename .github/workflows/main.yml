@@ -9,38 +9,39 @@ on:
 jobs:
   build:
     name: Build APK
-    runs-on: ubuntu-latest # Verwendet einen Linux-Runner
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Lädt deinen Code herunter
+        uses: actions/checkout@v4
+        # Lädt deinen Code nach /home/runner/work/Cloning-App/Cloning-App/
 
       - name: Set up JDK 11
-        uses: actions/setup-java@v3 # v3 ist hier noch aktuell und ok, v4 existiert auch
+        uses: actions/setup-java@v3
         with:
-          java-version: '11' # Das Projekt scheint älter zu sein, JDK 11 ist eine sichere Wahl
+          java-version: '11'
           distribution: 'temurin'
-          cache: gradle # Cache Gradle-Abhängigkeiten für schnellere Builds
+          cache: gradle
+          # Spezifiziere den Pfad, wo die Gradle-Dateien für das Caching gefunden werden.
+          # Pfade sind relativ zum GITHUB_WORKSPACE (/home/runner/work/Cloning-App)
+          cache-dependency-path: |
+            Cloning-App/**/*.gradle*
+            Cloning-App/**/gradle-wrapper.properties
+            Cloning-App/**/gradle/libs.versions.toml # Falls du Version Catalogs nutzt
+            Cloning-App/**/versions.properties # Falls vorhanden
 
       - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew # Macht das Gradle Wrapper Skript ausführbar
-
-      # WICHTIG: Akzeptiere die Android SDK-Lizenzen (optional, falls benötigt)
-      # Dieser Schritt ist manchmal nötig, wenn der Runner die Lizenzen nicht vorab akzeptiert hat.
-      # Das "Cloning-App" Repository ist älter, daher ist dies möglicherweise nicht sofort erforderlich,
-      # aber gut zu wissen, falls der Build fehlschlägt.
-      # - name: Accept Android SDK licenses
-      #   run: yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
+        # Das Arbeitsverzeichnis für diesen und die folgenden Schritte setzen
+        working-directory: ./Cloning-App
+        run: chmod +x ./gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug # Der Befehl zum Erstellen der Debug-APK
-        # Wenn das Android-Projekt in einem Unterverzeichnis wäre (z.B. 'AndroidApp'),
-        # müsstest du 'working-directory: ./AndroidApp' hinzufügen.
-        # Für "Cloning-App" ist das Stammverzeichnis das Projektverzeichnis.
+        working-directory: ./Cloning-App
+        run: ./gradlew assembleDebug
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4 # HIER IST DIE ÄNDERUNG
+        uses: actions/upload-artifact@v4
         with:
-          name: cloning-app-debug-apk # Name des Artefakts, das hochgeladen wird
-          path: app/build/outputs/apk/debug/app-debug.apk # Pfad zur generierten APK
-          # Der Pfad hängt vom Modulnamen ab (hier 'app') und dem Build-Typ ('debug').
+          name: cloning-app-debug-apk
+          # Der Pfad zum Artefakt ist jetzt relativ zum GITHUB_WORKSPACE
+          path: Cloning-App/app/build/outputs/apk/debug/app-debug.apk
