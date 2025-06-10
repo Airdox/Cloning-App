@@ -2,57 +2,45 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:  # Ermöglicht manuelles Auslösen des Workflows
+    branches:
+      - main  # Ändere dies zu 'master', wenn das dein Hauptbranch ist
+  workflow_dispatch: # Ermöglicht manuelles Auslösen des Workflows
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build APK
+    runs-on: ubuntu-latest # Verwendet einen Linux-Runner
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4 # Lädt deinen Code herunter
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9.13'  # Exakt die Version aus buildozer.spec
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11' # Das Projekt scheint älter zu sein, JDK 11 ist eine sichere Wahl
+          distribution: 'temurin'
+          cache: gradle # Cache Gradle-Abhängigkeiten für schnellere Builds
 
-    - name: Install System Dependencies
-  run: |
-    sudo apt-get update
-    sudo apt-get install -y \
-      git zip unzip openjdk-17-jdk python3-pip \
-      autoconf libtool pkg-config zlib1g-dev \
-      libncurses5-dev libncursesw5-dev libtinfo-dev \
-      cmake libffi-dev libssl-dev patch
-    - name: Install Python Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install cython==0.29.24  # Ältere Cython-Version für bessere Kompatibilität
-        pip install buildozer==1.5.0
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew # Macht das Gradle Wrapper Skript ausführbar
 
-    - name: Patch pyjnius
-      run: |
-        mkdir -p /tmp/pyjnius_patch
-        cd /tmp/pyjnius_patch
-        pip download pyjnius
-        tar xf pyjnius-*.tar.gz
-        cd pyjnius-*/
-        # Patch für das long-Typ-Problem
-        sed -i 's/isinstance(arg, long)/hasattr(__builtins__, "long") and isinstance(arg, __builtins__.long)/g' jnius/jnius_utils.pxi
-        pip install -e .
+      # WICHTIG: Akzeptiere die Android SDK-Lizenzen (optional, falls benötigt)
+      # Dieser Schritt ist manchmal nötig, wenn der Runner die Lizenzen nicht vorab akzeptiert hat.
+      # Das "Cloning-App" Repository ist älter, daher ist dies möglicherweise nicht sofort erforderlich,
+      # aber gut zu wissen, falls der Build fehlschlägt.
+      # - name: Accept Android SDK licenses
+      #   run: yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
 
-    - name: Build APK with Buildozer
-      run: |
-        # Stellen Sie sicher, dass die NDK-Version in buildozer.spec korrekt ist (25b)
-        buildozer android debug
+      - name: Build debug APK
+        run: ./gradlew assembleDebug # Der Befehl zum Erstellen der Debug-APK
+        # Wenn das Android-Projekt in einem Unterverzeichnis wäre (z.B. 'AndroidApp'),
+        # müsstest du 'working-directory: ./AndroidApp' hinzufügen.
+        # Für "Cloning-App" ist das Stammverzeichnis das Projektverzeichnis.
 
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: voice-cloning-app-debug
-        path: bin/*.apk
-        
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: cloning-app-debug-apk # Name des Artefakts, das hochgeladen wird
+          path: app/build/outputs/apk/debug/app-debug.apk # Pfad zur generierten APK
+          # Der Pfad hängt vom Modulnamen ab (hier 'app') und dem Build-Typ ('debug').
