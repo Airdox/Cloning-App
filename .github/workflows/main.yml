@@ -21,14 +21,13 @@ jobs:
         python-version: '3.9.13'  # Exakt die Version aus buildozer.spec
 
     - name: Install System Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip openjdk-17-jdk python3-pip \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev libtinfo5 \
-          cmake libffi-dev libssl-dev patch
-
+  run: |
+    sudo apt-get update
+    sudo apt-get install -y \
+      git zip unzip openjdk-17-jdk python3-pip \
+      autoconf libtool pkg-config zlib1g-dev \
+      libncurses5-dev libncursesw5-dev libtinfo-dev \
+      cmake libffi-dev libssl-dev patch
     - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
