@@ -14,55 +14,62 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Annahme: Checkt Code in GITHUB_WORKSPACE (/home/runner/work/Cloning-App/Cloning-App)
+        with:
+          path: ${{ github.workspace }} # Versuch A: Explizit den Workspace als Pfad angeben
 
-      - name: Detailed File Listing and Sanity Check
+      - name: Verify Checkout and File Availability
+        id: file_check # Geben diesem Schritt eine ID für spätere Referenz
         run: |
           echo "Current directory: $(pwd)"
           echo "GITHUB_WORKSPACE is: ${{ github.workspace }}"
           echo "--- Listing GITHUB_WORKSPACE (${{ github.workspace }}) ---"
           ls -Al ${{ github.workspace }}
-          echo "--- Listing app subdirectory (${{ github.workspace }}/app) ---"
-          ls -Al ${{ github.workspace }}/app || echo "app subdirectory not found"
-          echo "--- Listing gradle subdirectory (${{ github.workspace }}/gradle) ---"
-          ls -Al ${{ github.workspace }}/gradle || echo "gradle subdirectory not found"
-          echo "--- Checking for specific files ---"
-          find ${{ github.workspace }} -name 'gradlew'
-          find ${{ github.workspace }} -name 'build.gradle'
-          find ${{ github.workspace }} -name 'settings.gradle'
-          find ${{ github.workspace }} -name 'gradle-wrapper.properties'
-        shell: bash # Sicherstellen, dass Bash verwendet wird für erweiterte Befehle
+          if [ -f "${{ github.workspace }}/build.gradle" ] && [ -f "${{ github.workspace }}/gradle/wrapper/gradle-wrapper.properties" ]; then
+            echo "Gradle files seem to be present."
+            echo "gradle_files_present=true" >> $GITHUB_OUTPUT
+          else
+            echo "CRITICAL: Gradle files NOT found in ${{ github.workspace }}"
+            echo "gradle_files_present=false" >> $GITHUB_OUTPUT
+            exit 1 # Fehler werfen, wenn Hauptdateien nicht da sind
+          fi
+        shell: bash
 
-      # TESTWEISE: Setup Java OHNE Gradle Cache
-      # - name: Set up JDK 11 (NO CACHE TEST)
-      #   uses: actions/setup-java@v4
-      #   with:
-      #     java-version: '11'
-      #     distribution: 'temurin'
-      #     # cache: gradle # Cache temporär deaktiviert
-
-      # ORIGINAL: Setup Java MIT Gradle Cache (falls der Test oben fehlschlägt, diesen wieder aktivieren)
-      - name: Set up JDK 11
+      # Option 1: setup-java mit Cache (aktueller Stand, der fehlschlägt)
+      - name: Set up JDK 11 (with setup-java cache)
+        if: steps.file_check.outputs.gradle_files_present == 'true' # Nur ausführen, wenn Dateien da sind
         uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'temurin'
-          cache: gradle
+          cache: gradle # Dieser Mechanismus verursacht das Problem
           cache-dependency-path: |
             **/*.gradle*
             **/gradle-wrapper.properties
             **/gradle/libs.versions.toml
             **/versions.properties
 
+      # Option 2: setup-java OHNE eigenen Cache (als Fallback oder permanent, wenn Option 1 nicht geht)
+      # Um diese Option zu testen: Option 1 auskommentieren und diese einkommentieren.
+      # - name: Set up JDK 11 (without setup-java cache)
+      #   if: steps.file_check.outputs.gradle_files_present == 'true'
+      #   uses: actions/setup-java@v4
+      #   with:
+      #     java-version: '11'
+      #     distribution: 'temurin'
+            # KEIN 'cache: gradle' hier
+
       - name: Grant execute permission for gradlew
+        if: steps.file_check.outputs.gradle_files_present == 'true'
         working-directory: ${{ github.workspace }}
         run: chmod +x ./gradlew
 
       - name: Build debug APK
+        if: steps.file_check.outputs.gradle_files_present == 'true'
         working-directory: ${{ github.workspace }}
-        run: ./gradlew assembleDebug --no-daemon --stacktrace # Zusätzliche Gradle-Optionen für mehr Infos
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK artifact
+        if: steps.file_check.outputs.gradle_files_present == 'true' && success() # Nur hochladen, wenn Build erfolgreich war
         uses: actions/upload-artifact@v4
         with:
           name: cloning-app-debug-apk
