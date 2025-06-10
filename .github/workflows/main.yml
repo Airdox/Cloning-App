@@ -14,63 +14,87 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: ${{ github.workspace }} # Versuch A: Explizit den Workspace als Pfad angeben
+        # Checkt den Code (inklusive voice_cloning_app.zip) in GITHUB_WORKSPACE aus.
+        # GITHUB_WORKSPACE ist /home/runner/work/Cloning-App/Cloning-App
 
-      - name: Verify Checkout and File Availability
-        id: file_check # Geben diesem Schritt eine ID für spätere Referenz
+      - name: Verify ZIP file presence
+        id: zip_check
         run: |
-          echo "Current directory: $(pwd)"
-          echo "GITHUB_WORKSPACE is: ${{ github.workspace }}"
-          echo "--- Listing GITHUB_WORKSPACE (${{ github.workspace }}) ---"
-          ls -Al ${{ github.workspace }}
-          if [ -f "${{ github.workspace }}/build.gradle" ] && [ -f "${{ github.workspace }}/gradle/wrapper/gradle-wrapper.properties" ]; then
-            echo "Gradle files seem to be present."
-            echo "gradle_files_present=true" >> $GITHUB_OUTPUT
+          if [ -f "${{ github.workspace }}/voice_cloning_app.zip" ]; then
+            echo "voice_cloning_app.zip found."
+            echo "zip_present=true" >> $GITHUB_OUTPUT
           else
-            echo "CRITICAL: Gradle files NOT found in ${{ github.workspace }}"
-            echo "gradle_files_present=false" >> $GITHUB_OUTPUT
-            exit 1 # Fehler werfen, wenn Hauptdateien nicht da sind
+            echo "CRITICAL: voice_cloning_app.zip NOT found in ${{ github.workspace }}"
+            echo "zip_present=false" >> $GITHUB_OUTPUT
+            exit 1
           fi
         shell: bash
 
-      # Option 1: setup-java mit Cache (aktueller Stand, der fehlschlägt)
-      - name: Set up JDK 11 (with setup-java cache)
-        if: steps.file_check.outputs.gradle_files_present == 'true' # Nur ausführen, wenn Dateien da sind
+      - name: Unzip the Android project
+        if: steps.zip_check.outputs.zip_present == 'true'
+        run: |
+          echo "Unzipping voice_cloning_app.zip..."
+          unzip -q ${{ github.workspace }}/voice_cloning_app.zip -d ${{ github.workspace }}/android_project
+          echo "--- Listing contents of unzipped android_project directory ---"
+          ls -Al ${{ github.workspace }}/android_project
+          # Optional: Verschiebe den Inhalt, wenn das Projekt im ZIP-Archiv in einem Unterordner liegt
+          # Beispiel: Wenn im ZIP alles unter "Cloning-App-master/" liegt:
+          # if [ -d "${{ github.workspace }}/android_project/Cloning-App-master" ]; then
+          #   echo "Moving contents from Cloning-App-master..."
+          #   mv ${{ github.workspace }}/android_project/Cloning-App-master/* ${{ github.workspace }}/android_project/
+          #   rm -rf ${{ github.workspace }}/android_project/Cloning-App-master
+          #   echo "--- Listing contents of android_project directory after potential move ---"
+          #   ls -Al ${{ github.workspace }}/android_project
+          # fi
+        shell: bash
+
+      - name: Verify Gradle files after unzip
+        id: gradle_file_check
+        if: steps.zip_check.outputs.zip_present == 'true'
+        # Das Arbeitsverzeichnis für die Überprüfung muss das Verzeichnis sein, in das entpackt wurde
+        working-directory: ${{ github.workspace }}/android_project
+        run: |
+          echo "--- Verifying Gradle files in $(pwd) ---"
+          ls -Al
+          if [ -f "./build.gradle" ] && [ -f "./gradle/wrapper/gradle-wrapper.properties" ] && [ -f "./gradlew" ]; then
+            echo "Gradle files seem to be present after unzip."
+            echo "files_present=true" >> $GITHUB_OUTPUT
+          else
+            echo "CRITICAL: Gradle files NOT found after unzip in $(pwd)"
+            echo "files_present=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        shell: bash
+
+      - name: Set up JDK 11
+        if: steps.gradle_file_check.outputs.files_present == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'temurin'
-          cache: gradle # Dieser Mechanismus verursacht das Problem
-          cache-dependency-path: |
-            **/*.gradle*
-            **/gradle-wrapper.properties
-            **/gradle/libs.versions.toml
-            **/versions.properties
-
-      # Option 2: setup-java OHNE eigenen Cache (als Fallback oder permanent, wenn Option 1 nicht geht)
-      # Um diese Option zu testen: Option 1 auskommentieren und diese einkommentieren.
-      # - name: Set up JDK 11 (without setup-java cache)
-      #   if: steps.file_check.outputs.gradle_files_present == 'true'
-      #   uses: actions/setup-java@v4
-      #   with:
-      #     java-version: '11'
-      #     distribution: 'temurin'
-            # KEIN 'cache: gradle' hier
+          cache: gradle
+          # WICHTIG: Der Pfad für cache-dependency-path muss jetzt auf das Unterverzeichnis zeigen,
+          # in das entpackt wurde, relativ zum GITHUB_WORKSPACE.
+          cache-dependency-path: android_project/**/*.gradle*
+            android_project/**/gradle-wrapper.properties
+            android_project/**/gradle/libs.versions.toml
+            android_project/**/versions.properties
 
       - name: Grant execute permission for gradlew
-        if: steps.file_check.outputs.gradle_files_present == 'true'
-        working-directory: ${{ github.workspace }}
+        if: steps.gradle_file_check.outputs.files_present == 'true'
+        # Das Arbeitsverzeichnis muss das Verzeichnis sein, in das entpackt wurde
+        working-directory: ${{ github.workspace }}/android_project
         run: chmod +x ./gradlew
 
       - name: Build debug APK
-        if: steps.file_check.outputs.gradle_files_present == 'true'
-        working-directory: ${{ github.workspace }}
+        if: steps.gradle_file_check.outputs.files_present == 'true'
+        working-directory: ${{ github.workspace }}/android_project
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK artifact
-        if: steps.file_check.outputs.gradle_files_present == 'true' && success() # Nur hochladen, wenn Build erfolgreich war
+        if: steps.gradle_file_check.outputs.files_present == 'true' && success()
         uses: actions/upload-artifact@v4
         with:
           name: cloning-app-debug-apk
-          path: ${{ github.workspace }}/app/build/outputs/apk/debug/app-debug.apk
+          # Der Pfad zur APK ist nun relativ zum GITHUB_WORKSPACE und dem Entpack-Verzeichnis
+          path: ${{ github.workspace }}/android_project/app/build/outputs/apk/debug/app-debug.apk
