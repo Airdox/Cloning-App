@@ -14,24 +14,40 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Checkt den Code direkt in GITHUB_WORKSPACE aus.
-        # GITHUB_WORKSPACE ist /home/runner/work/Cloning-App/Cloning-App
+        # Annahme: Checkt Code in GITHUB_WORKSPACE (/home/runner/work/Cloning-App/Cloning-App)
 
-      - name: List files in GITHUB_WORKSPACE for diagnosis
+      - name: Detailed File Listing and Sanity Check
         run: |
+          echo "Current directory: $(pwd)"
           echo "GITHUB_WORKSPACE is: ${{ github.workspace }}"
-          echo "Listing files in GITHUB_WORKSPACE:"
-          ls -Al ${{ github.workspace }} # -A zeigt auch versteckte Dateien, l für langes Format
+          echo "--- Listing GITHUB_WORKSPACE (${{ github.workspace }}) ---"
+          ls -Al ${{ github.workspace }}
+          echo "--- Listing app subdirectory (${{ github.workspace }}/app) ---"
+          ls -Al ${{ github.workspace }}/app || echo "app subdirectory not found"
+          echo "--- Listing gradle subdirectory (${{ github.workspace }}/gradle) ---"
+          ls -Al ${{ github.workspace }}/gradle || echo "gradle subdirectory not found"
+          echo "--- Checking for specific files ---"
+          find ${{ github.workspace }} -name 'gradlew'
+          find ${{ github.workspace }} -name 'build.gradle'
+          find ${{ github.workspace }} -name 'settings.gradle'
+          find ${{ github.workspace }} -name 'gradle-wrapper.properties'
+        shell: bash # Sicherstellen, dass Bash verwendet wird für erweiterte Befehle
 
+      # TESTWEISE: Setup Java OHNE Gradle Cache
+      # - name: Set up JDK 11 (NO CACHE TEST)
+      #   uses: actions/setup-java@v4
+      #   with:
+      #     java-version: '11'
+      #     distribution: 'temurin'
+      #     # cache: gradle # Cache temporär deaktiviert
+
+      # ORIGINAL: Setup Java MIT Gradle Cache (falls der Test oben fehlschlägt, diesen wieder aktivieren)
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'temurin'
           cache: gradle
-          # Die Muster sind relativ zum GITHUB_WORKSPACE.
-          # Da GITHUB_WORKSPACE bereits /home/runner/work/Cloning-App/Cloning-App ist
-          # und die Gradle-Dateien direkt darin liegen:
           cache-dependency-path: |
             **/*.gradle*
             **/gradle-wrapper.properties
@@ -39,17 +55,15 @@ jobs:
             **/versions.properties
 
       - name: Grant execute permission for gradlew
-        # working-directory ist GITHUB_WORKSPACE (Standard, kann auch weggelassen werden)
         working-directory: ${{ github.workspace }}
         run: chmod +x ./gradlew
 
       - name: Build debug APK
         working-directory: ${{ github.workspace }}
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon --stacktrace # Zusätzliche Gradle-Optionen für mehr Infos
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: cloning-app-debug-apk
-          # Pfad ist relativ zum GITHUB_WORKSPACE
           path: ${{ github.workspace }}/app/build/outputs/apk/debug/app-debug.apk
