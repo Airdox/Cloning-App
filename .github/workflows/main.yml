@@ -38,9 +38,4 @@ jobs:
         # müsstest du 'working-directory: ./AndroidApp' hinzufügen.
         # Für "Cloning-App" ist das Stammverzeichnis das Projektverzeichnis.
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: cloning-app-debug-apk # Name des Artefakts, das hochgeladen wird
-          path: app/build/outputs/apk/debug/app-debug.apk # Pfad zur generierten APK
-          # Der Pfad hängt vom Modulnamen ab (hier 'app') und dem Build-Typ ('debug').
+      und dem Build-Typ ('debug').
