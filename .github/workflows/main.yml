@@ -20,6 +20,18 @@ jobs:
       with:
         python-version: '3.9.13'  # Exakt die Version aus buildozer.spec
 
+    - name: Check for buildozer.spec
+      run: |
+        if [ -f "buildozer.spec" ]; then
+          echo "buildozer.spec found in current directory"
+          cat buildozer.spec
+        else
+          echo "ERROR: buildozer.spec not found in current directory"
+          echo "Current directory contents:"
+          ls -la
+          exit 1
+        fi
+
     - name: Install System Dependencies
       run: |
         sudo apt-get update
