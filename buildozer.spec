@@ -1,3 +1,5 @@
+[app]
+
 title = Voice Cloning App
 package.name = voicecloningapk
 package.domain = org.example
