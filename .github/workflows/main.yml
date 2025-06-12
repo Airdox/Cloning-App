@@ -37,14 +37,10 @@ jobs:
 
     - name: Patch pyjnius
       run: |
-        mkdir -p /tmp/pyjnius_patch
-        cd /tmp/pyjnius_patch
-        pip download pyjnius
-        tar xf pyjnius-*.tar.gz
-        cd pyjnius-*/
-        # Patch für das long-Typ-Problem
-        sed -i 's/isinstance(arg, long)/hasattr(__builtins__, "long") and isinstance(arg, __builtins__.long)/g' jnius/jnius_utils.pxi
-        pip install -e .
+        # Alternative Methode für den pyjnius-Patch
+        pip install pyjnius
+        SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+        sed -i 's/isinstance(arg, long)/hasattr(__builtins__, "long") and isinstance(arg, __builtins__.long)/g' $SITE_PACKAGES/jnius/jnius_utils.pxi
 
     - name: Build APK with Buildozer
       run: |
@@ -56,3 +52,4 @@ jobs:
       with:
         name: voice-cloning-app-debug
         path: bin/*.apk
+        
