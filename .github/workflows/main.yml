@@ -35,12 +35,10 @@ jobs:
         pip install cython==0.29.24  # Ältere Cython-Version für bessere Kompatibilität
         pip install buildozer==1.5.0
 
-    - name: Patch pyjnius
+    - name: Skip pyjnius patch and use direct installation
       run: |
-        # Alternative Methode für den pyjnius-Patch
+        # Direkte Installation von pyjnius ohne Patch
         pip install pyjnius
-        SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-        sed -i 's/isinstance(arg, long)/hasattr(__builtins__, "long") and isinstance(arg, __builtins__.long)/g' $SITE_PACKAGES/jnius/jnius_utils.pxi
 
     - name: Build APK with Buildozer
       run: |
