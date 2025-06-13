@@ -22,8 +22,6 @@ jobs:
 
     - name: System-Abhängigkeiten installieren
       run: |
-        # Nur Nicht-Java/Ant-Abhängigkeiten über apt-get installieren.
-        # Java, Ant, Android SDK/NDK werden durch dedizierte Schritte/Actions behandelt.
         sudo apt-get update
         sudo apt-get install -y \
           git zip unzip python3-pip \
@@ -35,23 +33,21 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17'      # Beibehalten auf Java 17, da sdkmanager dies benötigt.
+        java-version: '17'
 
-    - name: Apache Ant manuell vorbereiten # <-- HIER WIRD DIE ÄNDERUNG GEMACHT
+    - name: Apache Ant manuell vorbereiten
       run: |
-        echo "Bereite Apache Ant 1.10.12 manuell vor..." # <-- Version im Echo anpassen
+        echo "Bereite Apache Ant 1.10.12 manuell vor..."
         mkdir -p /home/runner/.buildozer/android/platform
         cd /home/runner/.buildozer/android/platform
-        # Versuche verschiedene Download-URLs für Ant 1.10.12
-        # Die URLs könnten sich ändern, daher mehrere Optionen
         wget -q https://downloads.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz || \
         wget -q https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.12-bin.tar.gz || \
         wget -q https://dlcdn.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz
         
-        tar -xf apache-ant-1.10.12-bin.tar.gz # <-- Dateiname anpassen
-        rm apache-ant-1.10.12-bin.tar.gz     # <-- Dateiname anpassen
+        tar -xf apache-ant-1.10.12-bin.tar.gz
+        rm apache-ant-1.10.12-bin.tar.gz
         echo "Ant-Version (sollte jetzt mit JDK funktionieren):"
-        /home/runner/.buildozer/android/platform/apache-ant-1.10.12/bin/ant -version # <-- Ordnername anpassen
+        /home/runner/.buildozer/android/platform/apache-ant-1.10.12/bin/ant -version
 
     - name: Installiere Python-Abhängigkeiten
       run: |
@@ -60,21 +56,26 @@ jobs:
         pip install cython==0.29.24
         pip install buildozer==1.5.0 pyjnius
 
-    - name: Android SDK und NDK einrichten (mit spezialisierter Action)
+    - name: Android SDK und NDK einrichten (mit spezialisierter Action und spezifischen Versionen)
       uses: android-actions/setup-android@v2
       with:
         api-level: 27
-        build-tools: 30.0.3
+        # build-tools: 30.0.3 # <-- DIESE ZEILE ENTFERNEN, wir installieren manuell
         ndk: 25b
 
-    - name: Android SDK Lizenzen explizit akzeptieren
+    - name: Explizit Android Build-Tools 36.0.0 installieren und Lizenzen akzeptieren # <-- NEUER SCHRITT
       run: |
-        echo "Akzeptiere Android SDK Lizenzen explizit..."
+        echo "Installiere Android Build-Tools 36.0.0 und akzeptiere Lizenzen..."
+        # Stellen Sie sicher, dass ANDROID_HOME gesetzt ist. Die setup-android Action tut dies.
+        # Installiere build-tools;36.0.0 explizit und akzeptiere deren Lizenzen.
+        yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.0" || true
+        # Optional: Akzeptiere alle Lizenzen erneut, um sicherzugehen, dass keine anderen fehlen
         yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-    - name: Umgebung und Pfade debuggen (nach SDK/NDK Setup und Lizenzakzeptanz)
+
+    - name: Umgebung und Pfade debuggen (nach allen SDK/NDK Setups und Lizenzakzeptanz)
       run: |
-        echo "--- Aktueller Umgebungs-Debug (nach SDK/NDK Setup und Lizenzakzeptanz) ---"
+        echo "--- Aktueller Umgebungs-Debug ---"
         echo "Current directory: $(pwd)"
         echo "Files in current directory:"
         ls -la
@@ -96,13 +97,13 @@ jobs:
         
         echo "Inhalt von $ANDROID_HOME/build-tools/ :"
         ls -la "$ANDROID_HOME/build-tools/" || echo "$ANDROID_HOME/build-tools/ nicht gefunden."
-        ls -la "$ANDROID_HOME/build-tools/30.0.3/aidl" || echo "Aidl 30.0.3 nicht gefunden."
+        ls -la "$ANDROID_HOME/build-tools/36.0.0/aidl" || echo "Aidl 36.0.0 nicht gefunden." # <-- Prüfe auf 36.0.0
         echo "--- Ende Umgebungs-Debug ---"
 
     - name: buildozer.spec für GitHub Actions anpassen (Pfade von Action nutzen)
       run: |
         echo "Passe buildozer.spec an, um Pfade von setup-android Action zu nutzen..."
-        sed -i 's/^# *android.sdk = 24/android.sdk = 24/' buildozer.spec
+        sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec # Passen Sie dies an Ihre Ziel-API an (hier 27)
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
         sed -i '/^android.sdk_path =/d' buildozer.spec
@@ -110,6 +111,11 @@ jobs:
 
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
+
+        # Wenn Buildozer explizit 30.0.3 anfordert, ändern Sie dies auf 36.0.0 oder entfernen Sie die Zeile,
+        # damit es die neueste verfügbare Version verwendet.
+        # Beispiel: sed -i 's/^android.buildtool = 30.0.3/android.buildtool = 36.0.0/' buildozer.spec
+        # Wenn android.buildtool nicht explizit gesetzt ist, braucht es keine Änderung.
 
         if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
           echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
