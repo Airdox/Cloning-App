@@ -12,18 +12,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Repository auschecken
       uses: actions/checkout@v3
 
-    - name: Set up Python
+    - name: Python einrichten
       uses: actions/setup-python@v4
       with:
         python-version: '3.9.13'  # Exakt die Version aus buildozer.spec
 
-    - name: Install System Dependencies
+    - name: System-Abhängigkeiten installieren
       run: |
-        # Aktualisieren und installieren grundlegende Build-Tools und Bibliotheken.
-        # OpenJDK wird hier noch installiert, aber die "setup-java" Action sorgt für die korrekte Umgebung.
+        # Nur Nicht-Java/Ant-Abhängigkeiten über apt-get installieren.
+        # Java, Ant, Android SDK/NDK werden durch dedizierte Schritte/Actions behandelt.
         sudo apt-get update
         sudo apt-get install -y \
           git zip unzip python3-pip \
@@ -31,16 +31,15 @@ jobs:
           libncurses5-dev libncursesw5-dev libtinfo-dev \
           cmake libffi-dev libssl-dev patch wget
 
-    - name: Set up JDK for Android and Ant # <-- WICHTIG: Java für Ant und Android einrichten
+    - name: JDK für Android und Ant einrichten
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin' # Empfohlene, offene JDK-Distribution
         java-version: '11'      # JDK 11 ist eine gute Wahl für Ant 1.9.4 und Android-Builds.
-                                # Falls Buildozer/SDK eine spezifische ältere Version (z.B. 8) benötigt, hier anpassen.
 
-    - name: Prepare Apache Ant Manually # <-- Beibehalten, falls spezifische Ant-Version nötig
+    - name: Apache Ant manuell vorbereiten
       run: |
-        echo "Preparing Apache Ant 1.9.4 manually..."
+        echo "Bereite Apache Ant 1.9.4 manuell vor..."
         mkdir -p /home/runner/.buildozer/android/platform
         cd /home/runner/.buildozer/android/platform
         # Versuche verschiedene Download-URLs, falls eine fehlschlägt
@@ -50,19 +49,27 @@ jobs:
         
         tar -xf apache-ant-1.9.4-bin.tar.gz
         rm apache-ant-1.9.4-bin.tar.gz
-        echo "Ant version (should now work with JDK):"
+        echo "Ant-Version (sollte jetzt mit JDK funktionieren):"
         /home/runner/.buildozer/android/platform/apache-ant-1.9.4/bin/ant -version
 
-    - name: Install Python Dependencies
+    - name: Installiere Python-Abhängigkeiten
       run: |
-        echo "Installing Python dependencies..."
+        echo "Installiere Python-Abhängigkeiten..."
         python -m pip install --upgrade pip
-        pip install cython==0.29.24  # Ältere Cython-Version für bessere Kompatibilität
+        pip install cython==0.29.24
         pip install buildozer==1.5.0 pyjnius
 
-    - name: Debug Environment and Paths # <-- Erweitertes Debugging
+    - name: Android SDK und NDK einrichten (mit spezialisierter Action)
+      uses: android-actions/setup-android@v2 # Verwende eine spezialisierte Action
+      with:
+        api-level: 27 # Passend zu platforms;android-27
+        build-tools: 30.0.3 # Passend zu build-tools;30.0.3
+        ndk: 25b # Die benötigte NDK-Version
+        # Die Action setzt ANDROID_HOME und ANDROID_NDK_ROOT korrekt.
+
+    - name: Umgebung und Pfade debuggen (nach SDK/NDK Setup)
       run: |
-        echo "--- Current Environment Debug ---"
+        echo "--- Aktueller Umgebungs-Debug (nach SDK/NDK Setup) ---"
         echo "Current directory: $(pwd)"
         echo "Files in current directory:"
         ls -la
@@ -74,66 +81,63 @@ jobs:
         java -version
         echo "ANT_HOME (if set): $ANT_HOME"
         echo "PATH: $PATH"
-        echo "--- End Environment Debug ---"
+        echo "ANDROID_HOME: $ANDROID_HOME" # WICHTIG: Prüfen, ob von der Action gesetzt
+        echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT" # WICHTIG: Prüfen, ob von der Action gesetzt
+        
+        # Zusätzliche Überprüfung der SDK-Struktur und sdkmanager
+        echo "Inhalt von $ANDROID_HOME/tools/bin/ :"
+        ls -la "$ANDROID_HOME/tools/bin/" || echo "$ANDROID_HOME/tools/bin/ nicht gefunden."
+        echo "Inhalt von $ANDROID_HOME/cmdline-tools/latest/bin/ :"
+        ls -la "$ANDROID_HOME/cmdline-tools/latest/bin/" || echo "$ANDROID_HOME/cmdline-tools/latest/bin/ nicht gefunden."
+        echo "--- Ende Umgebungs-Debug ---"
 
-    - name: Prepare Android SDK and NDK # <-- Nutzen Sie die vorinstallierten SDK/NDK Pfade
+    - name: buildozer.spec für GitHub Actions anpassen (Pfade von Action nutzen)
       run: |
-        echo "Preparing Android SDK and NDK..."
-        # Überprüfen, ob ANDROID_HOME und ANDROID_NDK_ROOT gesetzt sind (von Runner oder anderer Action)
-        # Wenn Sie diese nicht manuell setzen oder eine spezielle Action verwenden, könnten sie leer sein.
-        # In den meisten ubuntu-latest Runnern sind sie aber oft schon vordefiniert.
-        if [ -z "$ANDROID_HOME" ]; then echo "ANDROID_HOME is not set!"; exit 1; fi
-        if [ -z "$ANDROID_NDK_ROOT" ]; then echo "ANDROID_NDK_ROOT is not set!"; exit 1; fi
+        echo "Passe buildozer.spec an, um Pfade von setup-android Action zu nutzen..."
+        # Stellen Sie sicher, dass android.sdk und android.ndk in buildozer.spec
+        # auf die gewünschten Versionen gesetzt sind (nicht auskommentiert).
+        # Wir werden android.sdk_path und android.ndk_path explizit setzen,
+        # da die setup-android Action ANDROID_HOME und ANDROID_NDK_ROOT definiert.
         
-        mkdir -p /home/runner/.buildozer/android/platform
-        cd /home/runner/.buildozer/android/platform
+        # Sicherstellen, dass die Android SDK und NDK Versionen in buildozer.spec aktiv sind
+        sed -i 's/^# *android.sdk = 24/android.sdk = 24/' buildozer.spec
+        sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
-        # Link zum bereits vorhandenen Android SDK
-        ln -s "$ANDROID_HOME" android-sdk
-        
-        # Akzeptieren Sie alle Lizenzen
-        echo "Accepting Android SDK licenses..."
-        yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager --licenses || true # '|| true' um Fehler zu ignorieren, falls schon akzeptiert
-        
-        # Installieren Sie die benötigten SDK-Komponenten (falls nicht schon vorhanden)
-        echo "Installing required SDK components..."
-        "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "platforms;android-27" "build-tools;30.0.3" || true
-        
-        # Link zum bereits vorhandenen NDK
-        ln -s "$ANDROID_NDK_ROOT" android-ndk-r25b
-        
-        echo "SDK and NDK preparation complete."
+        # Entfernen Sie alle Zeilen, die android.sdk_path oder android.ndk_path zuvor gesetzt haben.
+        sed -i '/^android.sdk_path =/d' buildozer.spec
+        sed -i '/^android.ndk_path =/d' buildozer.spec
 
-    - name: Modify buildozer.spec for GitHub Actions # <-- Beibehalten
-      run: |
-        echo "Modifying buildozer.spec..."
-        # Kommentieren Sie die Standard-SDK/NDK-Versionen aus
-        sed -i 's/^android.sdk =.*/# android.sdk = 24/' buildozer.spec
-        sed -i 's/^android.ndk =.*/# android.ndk = 25b/' buildozer.spec
-        
-        # Fügen Sie Pfade zu vorinstallierten SDK/NDK hinzu
+        # Fügen Sie Pfade zu den von der Action eingerichteten SDK/NDK-Verzeichnissen hinzu.
+        # Diese Variablen ($ANDROID_HOME, $ANDROID_NDK_ROOT) werden von der 'setup-android' Action gesetzt.
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
-        
-        echo "Updated buildozer.spec content:"
+
+        # Fügen Sie eine Regel für Buildozer hinzu, um sicherzustellen, dass die cmdline-tools installiert werden.
+        # Dies ist eine gängige Einstellung für neuere Buildozer-Versionen.
+        # Prüfen Sie Ihre buildozer.spec, ob diese Zeile bereits existiert oder benötigt wird.
+        if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
+          echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
+          echo "Hinzugefügt: android.add_aab_cmdline_tools = 1"
+        fi
+
+        echo "Aktualisierter Inhalt von buildozer.spec:"
         cat buildozer.spec
 
-    - name: Build APK with Buildozer (Debug Mode)
+    - name: APK mit Buildozer erstellen (Debug-Modus)
       run: |
-        echo "Starting APK build with Buildozer..."
-        # Verwenden Sie log_level=2 für detaillierte Logs
+        echo "Starte APK-Build mit Buildozer..."
         buildozer -v android debug
 
-    - name: Check for APK
+    - name: Nach APK suchen
       run: |
-        echo "--- Checking for APK in bin directory ---"
-        ls -la bin/ || echo "bin directory not found or empty."
-        echo "--- Searching for APK files recursively ---"
-        find . -name "*.apk" || echo "No APK files found."
+        echo "--- Suche nach APK im bin-Verzeichnis ---"
+        ls -la bin/ || echo "bin-Verzeichnis nicht gefunden oder leer."
+        echo "--- Suche rekursiv nach APK-Dateien ---"
+        find . -name "*.apk" || echo "Keine APK-Dateien gefunden."
 
-    - name: Upload APK Artifact
+    - name: APK-Artefakt hochladen
       uses: actions/upload-artifact@v4
-      if: always()  # Versuche immer, Artefakte hochzuladen, auch bei Fehlern
+      if: always() # Versuche immer, Artefakte hochzuladen, auch bei Fehlern
       with:
         name: voice-cloning-app-debug
         path: |
