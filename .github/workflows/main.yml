@@ -79,8 +79,8 @@ jobs:
     - name: Python-Abhängigkeiten installieren
       run: |
         python -m pip install --upgrade pip
-        # WICHTIGE ÄNDERUNG: Downgrade von python-for-android
-        pip install "cython==0.29.34" "python-for-android==2023.11.04" 
+        # KORREKTUR: Verwende die tatsächlich verfügbare Version 2023.9.16
+        pip install "cython==0.29.34" "python-for-android==2023.9.16" 
 
         # Fügt das Benutzer-Bin-Verzeichnis von pip zum PATH hinzu, damit 'p4a' gefunden wird
         echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
