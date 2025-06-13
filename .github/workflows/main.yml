@@ -27,38 +27,83 @@ jobs:
           git zip unzip openjdk-17-jdk python3-pip \
           autoconf libtool pkg-config zlib1g-dev \
           libncurses5-dev libncursesw5-dev libtinfo-dev \
-          cmake libffi-dev libssl-dev patch ant
+          cmake libffi-dev libssl-dev patch ant wget
 
     - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install cython==0.29.24  # Ältere Cython-Version für bessere Kompatibilität
-        pip install buildozer==1.5.0
+        pip install buildozer==1.5.0 pyjnius
 
-    - name: Skip pyjnius patch and use direct installation
+    - name: Debug Environment
       run: |
-        # Direkte Installation von pyjnius ohne Patch
-        pip install pyjnius
+        echo "Current directory: $(pwd)"
+        echo "Files in current directory:"
+        ls -la
+        echo "Python version:"
+        python --version
+        echo "Buildozer version:"
+        buildozer --version
 
-    - name: Accept Android SDK Licenses
+    - name: Prepare Apache Ant Manually
       run: |
-        mkdir -p /home/runner/.android
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > /home/runner/.android/repositories.cfg
-        echo "y" | buildozer android update || true
-
-    - name: Prepare Apache Ant
-      run: |
-        # Ant ist bereits über apt installiert, wir müssen nur den Pfad für buildozer setzen
+        # Manuelles Herunterladen und Einrichten von Apache Ant
         mkdir -p /home/runner/.buildozer/android/platform
-        ln -s /usr/share/ant /home/runner/.buildozer/android/platform/apache-ant-1.9.4
+        cd /home/runner/.buildozer/android/platform
+        wget -q https://downloads.apache.org/ant/binaries/apache-ant-1.9.4-bin.tar.gz || wget -q https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz || wget -q https://dlcdn.apache.org/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+        tar -xf apache-ant-1.9.4-bin.tar.gz
+        rm apache-ant-1.9.4-bin.tar.gz
+        echo "Ant version:"
+        /home/runner/.buildozer/android/platform/apache-ant-1.9.4/bin/ant -version
 
-    - name: Build APK with Buildozer
+    - name: Prepare Android SDK and NDK
       run: |
-        # Stellen Sie sicher, dass die NDK-Version in buildozer.spec korrekt ist (25b)
-        buildozer android debug
+        # Manuelles Herunterladen und Einrichten von Android SDK und NDK
+        mkdir -p /home/runner/.buildozer/android/platform
+        cd /home/runner/.buildozer/android/platform
+        
+        # Verwenden Sie das bereits installierte Android SDK
+        ln -s $ANDROID_HOME android-sdk
+        
+        # Akzeptieren Sie alle Lizenzen
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+        
+        # Installieren Sie die benötigten SDK-Komponenten
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-27" "build-tools;30.0.3"
+        
+        # Verwenden Sie das bereits installierte NDK
+        ln -s $ANDROID_NDK_ROOT android-ndk-r25b
+
+    - name: Modify buildozer.spec for GitHub Actions
+      run: |
+        # Anpassen der buildozer.spec für GitHub Actions
+        sed -i 's/^android.sdk =.*/# android.sdk = 24/' buildozer.spec
+        sed -i 's/^android.ndk =.*/# android.ndk = 25b/' buildozer.spec
+        
+        # Fügen Sie Pfade zu vorinstallierten SDK/NDK hinzu
+        echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
+        echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
+        
+        # Zeigen Sie die aktualisierte buildozer.spec an
+        cat buildozer.spec
+
+    - name: Build APK with Buildozer (Debug Mode)
+      run: |
+        # Verwenden Sie log_level=2 für detaillierte Logs
+        buildozer -v android debug
+
+    - name: Check for APK
+      run: |
+        echo "Checking for APK in bin directory:"
+        ls -la bin/ || echo "bin directory not found"
+        find . -name "*.apk" || echo "No APK files found"
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
+      if: always()  # Versuche immer, Artefakte hochzuladen, auch bei Fehlern
       with:
         name: voice-cloning-app-debug
-        path: bin/*.apk
+        path: |
+          bin/*.apk
+          .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
+          
