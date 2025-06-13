@@ -2,73 +2,207 @@ name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Ermöglicht manuelles Auslösen des Workflows
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Repository auschecken
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+    - name: Python einrichten
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9.23'  # Anpassung auf die tatsächlich gefundene Version, falls abweichend
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            zip unzip \
-            python3-pip \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses-dev \
-            libffi-dev \
-            libssl-dev \
-            patch \
-            wget \
-            cmake
+    - name: System-Abhängigkeiten installieren
+      run: |
+        echo "Installiere System-Abhängigkeiten..."
+        sudo apt-get update
+        sudo apt-get install -y \
+          git zip unzip python3-pip \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev libtinfo-dev \
+          cmake libffi-dev libssl-dev patch wget
 
-      - name: Install buildozer and Cython
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install --no-cache-dir buildozer cython
+    - name: JDK für Android und Ant einrichten
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
 
-      - name: Prepare Android SDK
-        run: |
-          mkdir -p "$HOME/.buildozer/android/platform"
-          cd "$HOME/.buildozer/android/platform"
+    - name: Apache Ant manuell vorbereiten (verbessert)
+      run: |
+        echo "Bereite Apache Ant 1.10.12 manuell vor..."
+        mkdir -p /home/runner/.buildozer/android/platform
+        cd /home/runner/.buildozer/android/platform
 
-          CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-          wget "$CMDLINE_TOOLS_URL" -O cmdline-tools.zip
-          unzip -q cmdline-tools.zip -d cmdline-tools-temp
-          mkdir -p android-sdk/cmdline-tools/latest
-          mv cmdline-tools-temp/cmdline-tools/* android-sdk/cmdline-tools/latest/
-          
-          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        # Versuche, von mehreren Spiegelservern herunterzuladen, bis einer erfolgreich ist
+        ANT_URLS=(
+          "https://dlcdn.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz"
+          "https://downloads.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz"
+          "https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.12-bin.tar.gz"
+        )
+        
+        DOWNLOAD_SUCCESS=false
+        for URL in "${ANT_URLS[@]}"; do
+          echo "Versuche Download von: $URL"
+          if wget -q "$URL" -O apache-ant-1.10.12-bin.tar.gz; then
+            DOWNLOAD_SUCCESS=true
+            echo "Download erfolgreich von: $URL"
+            break
+          else
+            echo "Download fehlgeschlagen von: $URL"
+          fi
+        done
 
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-31" \
-            "build-tools;36.0.0"
+        if [ "$DOWNLOAD_SUCCESS" = false ]; then
+          echo "Fehler: Konnte Apache Ant nicht von den bereitgestellten URLs herunterladen."
+          exit 1
+        fi
+        
+        tar -xf apache-ant-1.10.12-bin.tar.gz
+        rm apache-ant-1.10.12-bin.tar.gz
+        echo "Ant-Version (sollte jetzt mit JDK funktionieren):"
+        /home/runner/.buildozer/android/platform/apache-ant-1.10.12/bin/ant -version
 
-      - name: Build APK with Buildozer
-        run: |
-          buildozer android debug
+    - name: Installiere Python-Abhängigkeiten
+      run: |
+        echo "Installiere Python-Abhängigkeiten..."
+        python -m pip install --upgrade pip
+        pip install cython==0.29.24
+        pip install buildozer==1.5.0 pyjnius
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: built-apk
-          path: |
-            bin/*.apk
-            .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
+    - name: Manuell Android Command Line Tools, NDK und Lizenzen für Buildozer vorinstallieren
+      run: |
+        echo "Manuell Android Command Line Tools, NDK und Lizenzen für Buildozer vorinstallieren..."
+        BUILDER_PLATFORM_DIR="/home/runner/.buildozer/android/platform"
+        BUILDER_SDK_DIR="$BUILDER_PLATFORM_DIR/android-sdk"
+        BUILDER_NDK_DIR="$BUILDER_PLATFORM_DIR/android-ndk-r25b" # NDK version aus buildozer.spec
+        
+        mkdir -p "$BUILDER_SDK_DIR"
+        mkdir -p "$BUILDER_NDK_DIR"
+
+        # 1. Download and unpack Command Line Tools
+        CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-6514223_latest.zip"
+        echo "Lade Command Line Tools von $CMDLINE_TOOLS_URL herunter..."
+        wget -q "$CMDLINE_TOOLS_URL" -O "$BUILDER_PLATFORM_DIR/commandlinetools.zip"
+        echo "Entpacke Command Line Tools nach $BUILDER_SDK_DIR..."
+        unzip -q "$BUILDER_PLATFORM_DIR/commandlinetools.zip" -d "$BUILDER_SDK_DIR"
+        rm "$BUILDER_PLATFORM_DIR/commandlinetools.zip"
+
+        # NEU: Erstelle einen Symlink für sdkmanager zur von Buildozer erwarteten Position
+        echo "Erstelle Symlink für sdkmanager an der von Buildozer erwarteten Position..."
+        mkdir -p "$BUILDER_SDK_DIR/tools/bin" # Stelle sicher, dass das Zielverzeichnis existiert
+        ln -sf "$BUILDER_SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "$BUILDER_SDK_DIR/tools/bin/sdkmanager"
+        echo "Symlink erstellt: $BUILDER_SDK_DIR/tools/bin/sdkmanager -> $BUILDER_SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+
+        # 2. Download and unpack NDK
+        NDK_URL="https://dl.google.com/android/repository/android-ndk-r25b-linux.zip" # NDK version aus buildozer.spec
+        echo "Lade NDK von $NDK_URL herunter..."
+        wget -q "$NDK_URL" -O "$BUILDER_PLATFORM_DIR/android-ndk-r25b-linux.zip"
+        echo "Entpacke NDK nach $BUILDER_PLATFORM_DIR..."
+        unzip -q "$BUILDER_PLATFORM_DIR/android-ndk-r25b-linux.zip" -d "$BUILDER_PLATFORM_DIR"
+        rm "$BUILDER_PLATFORM_DIR/android-ndk-r25b-linux.zip"
+        
+        # Bestimme den korrekten sdkmanager-Pfad innerhalb von Buildozers SDK für unsere manuellen Operationen
+        # Dieser wird nun den Symlink verwenden.
+        SDK_MANAGER_PATH="$BUILDER_SDK_DIR/tools/bin/sdkmanager"
+        
+        if [ ! -f "$SDK_MANAGER_PATH" ]; then
+            echo "Fehler: sdkmanager nicht unter dem erwarteten Symlink-Pfad gefunden."
+            exit 1
+        fi
+        
+        echo "sdkmanager gefunden unter: $SDK_MANAGER_PATH"
+        
+        # 3. Akzeptiere alle Android SDK Lizenzen
+        echo "Akzeptiere alle Android SDK Lizenzen für Buildozers SDK-Installation..."
+        yes | "$SDK_MANAGER_PATH" --licenses || true
+        
+        # 4. Installiere spezifische Build-Tools und Platform-Tools (verwendet den Symlink)
+        echo "Installiere build-tools;36.0.0 und platform-tools für Buildozers SDK..."
+        yes | "$SDK_MANAGER_PATH" "build-tools;36.0.0" || true
+        yes | "$SDK_MANAGER_PATH" "platform-tools" || true
+        
+        echo "Manuelle Vorinstallation und Lizenzakzeptanz für Buildozer abgeschlossen."
+
+    - name: buildozer.spec für GitHub Actions anpassen (Pfade von Buildozer nutzen)
+      run: |
+        echo "Passe buildozer.spec an, um Buildozer die SDK/NDK-Verwaltung zu überlassen..."
+        # Setze android.sdk auf 27 und android.ndk auf 25b, falls noch nicht geschehen
+        sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec
+        sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
+        
+        # Entferne eventuell vorhandene sdk_path, ndk_path, buildtool, accept_sdk_license Einträge
+        # Buildozer sollte diese Pfade intern finden, da wir sie vorinstalliert und verlinkt haben.
+        sed -i '/^android.sdk_path =/d' buildozer.spec
+        sed -i '/^android.ndk_path =/d' buildozer.spec
+        sed -i '/^android.buildtool =/d' buildozer.spec
+        sed -i '/^android.accept_sdk_license =/d' buildozer.spec
+
+        # Explizite Zuweisung der Build-Tool-Version und Lizenzakzeptanz für Buildozer
+        echo "android.buildtool = 36.0.0" >> buildozer.spec
+        echo "android.accept_sdk_license = 1" >> buildozer.spec 
+
+        # Stelle sicher, dass android.add_aab_cmdline_tools gesetzt ist
+        if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
+          echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
+          echo "Hinzugefügt: android.add_aab_cmdline_tools = 1"
+        fi
+
+        echo "Aktualisierter Inhalt von buildozer.spec:"
+        cat buildozer.spec
+
+    - name: Umgebung und Pfade debuggen (Buildozer-Pfade)
+      run: |
+        echo "--- Aktueller Umgebungs-Debug (nach Buildozer-Konfiguration) ---"
+        echo "Current directory: $(pwd)"
+        ls -la
+        echo "Python version:"
+        python --version
+        echo "Buildozer version:"
+        buildozer --version
+        echo "Java version (should be from setup-java):"
+        java -version
+        echo "ANT_HOME (if set): $ANT_HOME"
+        echo "PATH: $PATH"
+        
+        echo "Inhalt von /home/runner/.buildozer/android/platform/android-sdk/build-tools/ :"
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/build-tools/ || echo "Build-Tools Ordner in Buildozer-Pfad nicht gefunden."
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/build-tools/36.0.0/aidl || echo "Aidl 36.0.0 in Buildozer-Pfad nicht gefunden."
+        
+        echo "Inhalt von /home/runner/.buildozer/android/platform/android-sdk/platform-tools/ :"
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/platform-tools/ || echo "Platform-Tools Ordner in Buildozer-Pfad nicht gefunden."
+        echo "Inhalt von /home/runner/.buildozer/android/platform/android-ndk-r25b/ :"
+        ls -la /home/runner/.buildozer/android/platform/android-ndk-r25b/ || echo "NDK Ordner in Buildozer-Pfad nicht gefunden."
+        
+        echo "--- Ende Umgebungs-Debug ---"
+
+    - name: APK mit Buildozer erstellen (Debug-Modus)
+      run: |
+        echo "Starte APK-Build mit Buildozer..."
+        buildozer -v android debug
+
+    - name: Nach APK suchen
+      run: |
+        echo "--- Suche nach APK im bin-Verzeichnis ---"
+        ls -la bin/ || echo "bin-Verzeichnis nicht gefunden oder leer."
+        echo "--- Suche rekursiv nach APK-Dateien ---"
+        find . -name "*.apk" || echo "Keine APK-Dateien gefunden."
+
+    - name: APK-Artefakt hochladen
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: voice-cloning-app-debug
+        path: |
+          bin/*.apk
+          .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
+        retention-days: 7
+        
