@@ -128,7 +128,7 @@ jobs:
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
         sed -i '/^android.sdk_path =/d' buildozer.spec
-        sed -i '/^android.ndk_path =/d' buildi.spec
+        sed -i '/^android.ndk_path =/d' buildozer.spec # <-- KORRIGIERT!
 
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
@@ -167,4 +167,4 @@ jobs:
           bin/*.apk
           .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
         retention-days: 7
-
+        
