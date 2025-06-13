@@ -27,7 +27,7 @@ jobs:
           git zip unzip openjdk-17-jdk python3-pip \
           autoconf libtool pkg-config zlib1g-dev \
           libncurses5-dev libncursesw5-dev libtinfo-dev \
-          cmake libffi-dev libssl-dev patch
+          cmake libffi-dev libssl-dev patch ant
 
     - name: Install Python Dependencies
       run: |
@@ -44,7 +44,13 @@ jobs:
       run: |
         mkdir -p /home/runner/.android
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > /home/runner/.android/repositories.cfg
-        echo "y" | buildozer android update
+        echo "y" | buildozer android update || true
+
+    - name: Prepare Apache Ant
+      run: |
+        # Ant ist bereits über apt installiert, wir müssen nur den Pfad für buildozer setzen
+        mkdir -p /home/runner/.buildozer/android/platform
+        ln -s /usr/share/ant /home/runner/.buildozer/android/platform/apache-ant-1.9.4
 
     - name: Build APK with Buildozer
       run: |
@@ -56,4 +62,3 @@ jobs:
       with:
         name: voice-cloning-app-debug
         path: bin/*.apk
-        
