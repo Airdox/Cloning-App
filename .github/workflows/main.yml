@@ -35,14 +35,35 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Apache Ant manuell vorbereiten
+    - name: Apache Ant manuell vorbereiten (verbessert)
       run: |
         echo "Bereite Apache Ant 1.10.12 manuell vor..."
         mkdir -p /home/runner/.buildozer/android/platform
         cd /home/runner/.buildozer/android/platform
-        wget -q https://downloads.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz || \
-        wget -q https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.12-bin.tar.gz || \
-        wget -q https://dlcdn.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz
+
+        # Versuche, von mehreren Spiegelservern herunterzuladen, bis einer erfolgreich ist
+        ANT_URLS=(
+          "https://dlcdn.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz"
+          "https://downloads.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz"
+          "https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.12-bin.tar.gz"
+        )
+        
+        DOWNLOAD_SUCCESS=false
+        for URL in "${ANT_URLS[@]}"; do
+          echo "Versuche Download von: $URL"
+          if wget -q "$URL" -O apache-ant-1.10.12-bin.tar.gz; then
+            DOWNLOAD_SUCCESS=true
+            echo "Download erfolgreich von: $URL"
+            break
+          else
+            echo "Download fehlgeschlagen von: $URL"
+          fi
+        done
+
+        if [ "$DOWNLOAD_SUCCESS" = false ]; then
+          echo "Fehler: Konnte Apache Ant nicht von den bereitgestellten URLs herunterladen."
+          exit 1
+        fi
         
         tar -xf apache-ant-1.10.12-bin.tar.gz
         rm apache-ant-1.10.12-bin.tar.gz
@@ -107,7 +128,7 @@ jobs:
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
         sed -i '/^android.sdk_path =/d' buildozer.spec
-        sed -i '/^android.ndk_path =/d' buildozer.spec
+        sed -i '/^android.ndk_path =/d' buildi.spec
 
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
@@ -146,4 +167,4 @@ jobs:
           bin/*.apk
           .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
         retention-days: 7
-        
+
