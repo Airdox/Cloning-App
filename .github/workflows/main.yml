@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Ermöglicht manuelles Auslösen des Workflows
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,11 +18,10 @@ jobs:
     - name: Python einrichten
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9.13'  # Exakt die Version aus buildozer.spec
+        python-version: '3.9.13'
 
     - name: System-Abhängigkeiten installieren
       run: |
-        echo "Installiere System-Abhängigkeiten..."
         sudo apt-get update
         sudo apt-get install -y \
           git zip unzip python3-pip \
@@ -30,109 +29,61 @@ jobs:
           libncurses5-dev libncursesw5-dev libtinfo-dev \
           cmake libffi-dev libssl-dev patch wget
 
-    - name: JDK für Android und Ant einrichten
+    - name: JDK einrichten
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Apache Ant manuell vorbereiten (robust)
+    - name: Android SDK + Lizenzen vorbereiten
       run: |
-        set -e
-        mkdir -p /home/runner/.buildozer/android/platform
-        cd /home/runner/.buildozer/android/platform
+        mkdir -p "$HOME/.buildozer/android/platform"
+        cd "$HOME/.buildozer/android/platform"
 
+        # Aktuelle cmdline-tools laden
+        CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+        wget "$CMDLINE_TOOLS_URL" -O cmdline-tools.zip
+        unzip -q cmdline-tools.zip -d cmdline-tools-temp
+        mkdir -p android-sdk/cmdline-tools/latest
+        mv cmdline-tools-temp/cmdline-tools/* android-sdk/cmdline-tools/latest/
+        export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
+
+        echo "export ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;36.0.0"
+
+    - name: Apache Ant installieren
+      run: |
+        cd "$HOME/.buildozer/android/platform"
         ANT_VERSION=1.10.12
         ANT_ARCHIVE="apache-ant-$ANT_VERSION-bin.tar.gz"
-        ANT_URLS=(
-          "https://dlcdn.apache.org/ant/binaries/$ANT_ARCHIVE"
-          "https://downloads.apache.org/ant/binaries/$ANT_ARCHIVE"
-          "https://archive.apache.org/dist/ant/binaries/$ANT_ARCHIVE"
-        )
-
-        DOWNLOAD_SUCCESS=false
-        for URL in "${ANT_URLS[@]}"; do
-          echo "Versuche Download von $URL ..."
-          if wget "$URL" -O "$ANT_ARCHIVE"; then
-            if tar -tzf "$ANT_ARCHIVE" &>/dev/null; then
-              echo "Download und Archivprüfung erfolgreich."
-              DOWNLOAD_SUCCESS=true
-              break
-            else
-              echo "Archiv beschädigt, versuche nächsten Mirror..."
-              rm -f "$ANT_ARCHIVE"
-            fi
-          else
-            echo "Download fehlgeschlagen von $URL"
-          fi
-        done
-
-        if [ "$DOWNLOAD_SUCCESS" = false ]; then
-          echo "Konnte Apache Ant nicht zuverlässig herunterladen."
-          exit 1
-        fi
-
+        wget "https://downloads.apache.org/ant/binaries/$ANT_ARCHIVE"
         tar -xf "$ANT_ARCHIVE"
         rm "$ANT_ARCHIVE"
-        echo "Ant-Version:"
-        ./apache-ant-$ANT_VERSION/bin/ant -version
+        echo "$PWD/apache-ant-$ANT_VERSION/bin" >> $GITHUB_PATH
 
-    - name: Installiere Python-Abhängigkeiten
+    - name: Python-Abhängigkeiten installieren
       run: |
-        echo "Installiere Python-Abhängigkeiten..."
         python -m pip install --upgrade pip
-        pip install cython==0.29.24
-        pip install buildozer==1.5.0 pyjnius
+        pip install cython==0.29.24 buildozer==1.5.0
 
-    - name: buildozer.spec für GitHub Actions anpassen (Pfade von Buildozer nutzen)
+    - name: buildozer.spec vorbereiten
       run: |
-        echo "Passe buildozer.spec an..."
-        sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec
+        sed -i 's/^# *android.sdk = 24/android.sdk = 31/' buildozer.spec
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         sed -i '/^android.sdk_path =/d' buildozer.spec
         sed -i '/^android.ndk_path =/d' buildozer.spec
         sed -i '/^android.buildtool =/d' buildozer.spec
-        sed -i '/^android.accept_sdk_license =/d' buildozer.spec
         echo "android.buildtool = 36.0.0" >> buildozer.spec
         echo "android.accept_sdk_license = 1" >> buildozer.spec
-        if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
-          echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
-        fi
-        echo "Aktualisierter Inhalt von buildozer.spec:"
-        cat buildozer.spec
 
-    - name: Umgebung und Pfade debuggen (Buildozer-Pfade)
+    - name: APK bauen
       run: |
-        echo "--- Aktueller Umgebungs-Debug ---"
-        echo "Current directory: $(pwd)"
-        ls -la
-        echo "Python version:"
-        python --version
-        echo "Buildozer version:"
-        buildozer --version
-        echo "Java version:"
-        java -version
-        echo "PATH: $PATH"
-        echo "Buildozer Android SDK erwartet unter:"
-        echo "/home/runner/.buildozer/android/platform/android-sdk"
-        echo "/home/runner/.buildozer/android/platform/android-ndk-r25b"
-        ls -la /home/runner/.buildozer/android/platform/android-sdk/build-tools/ || echo "Build-Tools nicht gefunden."
-        ls -la /home/runner/.buildozer/android/platform/android-sdk/platform-tools/ || echo "Platform-Tools nicht gefunden."
-        echo "--- Ende Debug ---"
-
-    - name: APK mit Buildozer erstellen (Debug-Modus)
-      run: |
-        echo "Starte APK-Build mit Buildozer..."
         buildozer -v android debug
 
-    - name: Nach APK suchen
-      run: |
-        echo "--- Suche nach APK im bin-Verzeichnis ---"
-        ls -la bin/ || echo "bin-Verzeichnis nicht gefunden oder leer."
-        echo "--- Suche rekursiv nach APK-Dateien ---"
-        find . -name "*.apk" || echo "Keine APK-Dateien gefunden."
-
-    - name: APK-Artefakt hochladen
+    - name: APK hochladen
       uses: actions/upload-artifact@v4
       if: always()
       with:
