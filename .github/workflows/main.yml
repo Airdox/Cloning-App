@@ -134,7 +134,7 @@ jobs:
             echo "LICENSE-Datei existiert bereits."
         fi
 
-        echo "--- DEBUGGING-AUSGABE: Dateistruktur und pyproject.toml Inhalt ---"
+        echo "--- DEBUGGING-AUSGABE: Dateistruktur und pyproject.toml Inhalt (vor Briefcase-Aufruf) ---"
         echo "Inhalt von pyproject.toml:"
         cat pyproject.toml
         echo "Dateistruktur im aktuellen Verzeichnis:"
@@ -143,9 +143,10 @@ jobs:
         ls -R
         echo "--- ENDE DEBUGGING-AUSGABE ---"
 
-        echo "Starte den Briefcase-Build für Android mit verbose-Modus..."
+        echo "Starte den Briefcase-Build für Android..."
+        # KORREKTUR: "--verbose" wurde entfernt, da es nicht unterstützt wird.
         # Briefcase build android wird bei Bedarf automatisch briefcase create und SDK-Installationen verwalten.
-        briefcase build android --verbose # Oder -vv für noch mehr Details
+        briefcase build android 
 
         echo "Suche nach der generierten APK-Datei..."
         APK_PATH=$(find android -name "*.apk" -print -quit) # -quit beendet nach dem ersten Fund
