@@ -1,5 +1,5 @@
 # Name des Workflows
-name: Build Android APK with Python-for-Android
+name: Build Android APK with BeeWare Briefcase
 
 # Trigger für den Workflow
 on:
@@ -25,119 +25,93 @@ jobs:
       with:
         python-version: '3.9' # Oder Ihre bevorzugte Python-Version
 
-    # 3. System-Abhängigkeiten für python-for-android installieren
-    - name: System-Abhängigkeiten installieren
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip python3-pip \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev libtinfo-dev \
-          cmake libffi-dev libssl-dev patch wget \
-          openjdk-17-jdk \
-          automake # Stellt sicher, dass automake verfügbar ist
-
-    # 4. Java Development Kit (JDK) einrichten (Optional, falls oben über apt installiert)
-    # Dieser Schritt ist redundant, wenn openjdk-17-jdk über apt installiert wird.
-    # Behalte ihn hier als Fallback oder für spezifische Setups.
-    - name: Java JDK einrichten (Pfad sicherstellen)
+    # 3. Java Development Kit (JDK) einrichten (für Android SDK, von Briefcase benötigt)
+    - name: Java JDK einrichten (für Android SDK)
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    # 5. Android SDK Command-Line Tools einrichten
-    - name: Android SDK Command-Line Tools einrichten
-      run: |
-        echo "Lade Android Command-Line Tools herunter..."
-        wget -q "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -O commandlinetools.zip
-
-        ANDROID_SDK_ROOT="${HOME}/android-sdk"
-        mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools"
-        unzip -q commandlinetools.zip -d "${ANDROID_SDK_ROOT}/cmdline-tools"
-        mv "${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
-        rm commandlinetools.zip
-
-        echo "Setze ANDROID_HOME und aktualisiere den PATH..."
-        echo "ANDROID_HOME=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
-        echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
-
-        # Sicherstellen, dass das Tools-Verzeichnis im PATH für sdkmanager ist
-        echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest" >> $GITHUB_PATH
-
-    # 6. Android SDK-Komponenten installieren und Lizenzen akzeptieren
-    - name: SDK-Lizenzen akzeptieren und spezifische Build-Tools installieren
-      run: |
-        echo "Akzeptiere automatisch alle SDK-Lizenzen..."
-        yes | sdkmanager --licenses > /dev/null
-
-        echo "Installiere proaktiv die von python-for-android benötigten SDK-Komponenten..."
-        sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
-
-    # 7. Python-Abhängigkeiten installieren (für python-for-android)
-    - name: Python-Abhängigkeiten installieren
+    # 4. Briefcase installieren
+    - name: Briefcase installieren
       run: |
         python -m pip install --upgrade pip
-        # KORREKTUR: Verwende die tatsächlich verfügbare Version 2023.9.16
-        pip install "cython==0.29.34" "python-for-android==2023.9.16" 
+        pip install briefcase
 
-        # Fügt das Benutzer-Bin-Verzeichnis von pip zum PATH hinzu, damit 'p4a' gefunden wird
-        echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
-        which p4a || { echo "FEHLER: p4a-Befehl nach Installation und PATH-Update nicht gefunden. Überprüfen Sie die Pip-Installationsprotokolle."; exit 1; }
-        p4a --version # Zur Bestätigung, dass es ausgeführt werden kann
-
-    # 8. APK mit python-for-android erstellen
-    - name: APK mit python-for-android erstellen
+    # 5. Konfiguriere Briefcase und erstelle die Android APK
+    - name: Konfiguriere Briefcase und erstelle die Android APK
       run: |
-        # Beispiel p4a-Befehl. SIE MÜSSEN DIESEN ANPASSEN.
-        # - Die Argumente '--name' und '--version' sind für Ihre App.
-        # - Das Argument '--package' ist Ihre eindeutige Paket-ID (z.B. com.ihrefirma.ihreapp).
-        # - Das Argument '--requirements' listet Ihre Python-Abhängigkeiten auf.
-        # - Das Argument '--private' zeigt auf das Verzeichnis mit dem Python-Quellcode Ihrer Anwendung.
-        # - Das Argument '--main' zeigt auf Ihre main.py-Datei innerhalb des --private-Verzeichnisses.
-        # - Das Argument '--arch' gibt die Architektur an. 'arm64-v8a' ist gängig für moderne Geräte.
-        # - Das Flag '--debug' erstellt eine debugfähige APK.
-        # - '--sdk' und '--android-api' geben die Ziel-SDK-Version an.
-        # - '--build-tools' gibt die Build-Tools-Version an.
+        # Briefcase benötigt eine 'pyproject.toml'-Datei im Root Ihres Projekts.
+        # Diese Datei definiert Ihre App und ihre Einstellungen für Briefcase.
+        #
+        # WICHTIG: Sie müssen diese 'pyproject.toml'-Datei tatsächlich
+        # in Ihrem Git-Repository erstellen und verwalten.
+        # Der folgende 'cat <<EOF > pyproject.toml'-Block ist NUR ZUR DEMONSTRATION
+        # und erstellt eine temporäre Datei im Workflow. In einem realen Projekt
+        # sollte diese Datei bereits im Repository vorhanden sein.
 
-        # Passen Sie diese Variablen an Ihr Projekt an
-        APP_NAME="MyPythonApp"
-        APP_VERSION="1.0"
-        PACKAGE_NAME="org.example.myandroidapp" # WICHTIG: Ändern Sie dies!
-        PYTHON_SOURCE_DIR="." # Angenommen, Ihr Python-Code befindet sich im Root des Repos
-        MAIN_PY_FILE="main.py" # Ihr Haupt-Python-Einstiegspunkt
+        # Beispielhafte Erstellung einer minimalen main.py, falls noch nicht vorhanden
+        # (Briefcase erwartet eine Python-App).
+        # Im echten Projekt sollte Ihre main.py im Root oder im 'src'-Ordner liegen.
+        if [ ! -f main.py ]; then
+            echo "print('Hallo von meiner BeeWare Android App!')" > main.py
+        fi
 
-        # Sie müssen möglicherweise weitere Recipes für Bibliotheken wie Kivy, Pygame usw. hinzufügen.
-        # Beispiel für eine Kivy-App: --requirements=python3,kivy
-        # Für eine reine Python-App: --requirements=python3
+        # Erstellen Sie die pyproject.toml-Datei in Ihrem Repository.
+        # Eine Beispielkonfiguration finden Sie im nächsten Dokument.
+        # Wenn Sie diese Datei bereits haben, ignorieren Sie diesen Block.
+        cat <<EOF > pyproject.toml
+        [project]
+        name = "MyPythonApp"
+        version = "1.0.0"
+        description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
+        requires-python = ">=3.9"
 
-        # Verwenden Sie spezifische Versionen für android-api und build-tools, die Sie installiert haben
-        ANDROID_SDK_VERSION="34" # Entspricht platforms;android-34
-        ANDROID_BUILD_TOOLS_VERSION="34.0.0" # Entspricht build-tools;34.0.0
+        [tool.briefcase]
+        project_name = "MyPythonApp"
+        bundle = "org.example" # Ihre eindeutige Paket-ID (z.B. com.ihrefirma)
+        author = "Ihr Name"
+        author_email = "ihre.email@example.com"
+        url = "https://example.com/mypythonapp"
+        license = "MIT"
+        requires = [] # Fügen Sie hier Ihre Python-Abhängigkeiten hinzu (z.B. ["kivy", "requests"])
 
-        echo "Führe den python-for-android Build-Befehl aus..."
-        p4a apk \
-            --debug \
-            --name "$APP_NAME" \
-            --version "$APP_VERSION" \
-            --package "$PACKAGE_NAME" \
-            --requirements=python3 \
-            --private "$PYTHON_SOURCE_DIR" \
-            --main "$PYTHON_SOURCE_DIR/$MAIN_PY_FILE" \
-            --arch arm64-v8a \
-            --android-api "$ANDROID_SDK_VERSION" \
-            --build-tools "$ANDROID_BUILD_TOOLS_VERSION" \
-            # --add-service your_service_name:your_service_file.py # Fügen Sie dies hinzu, wenn Sie Services haben
-            # Weitere p4a-Optionen nach Bedarf hinzufügen, z.B. --permission, --orientation, etc.
+        [tool.briefcase.app.mypythonapp] # Der Name hier muss dem 'project.name' entsprechen (kleingeschrieben und Bindestriche statt Leerzeichen)
+        sources = ["."] # Angenommen, Ihre Python-Quellcode-Dateien (z.B. main.py) befinden sich im Root-Verzeichnis
+        main_module = "main" # Der Name der Haupt-Python-Datei ohne .py-Endung (z.B. main.py -> main)
+        long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
+        
+        [tool.briefcase.app.mypythonapp.android]
+        target_device = "generic" # Kann auch "Pixel 4" oder andere sein
+        sdk_version = "34" # Die Android API-Level, auf das Sie abzielen
+        min_sdk_version = "21" # Die minimale Android API-Level, die Ihre App unterstützt
+        build_tools_version = "34.0.0" # Die Android Build Tools Version
+        supported_abis = ["arm64-v8a"] # Ziel-Architekturen. arm64-v8a ist für moderne Geräte üblich.
+        # permissions = ["android.permission.INTERNET"] # Optional: Fügen Sie hier benötigte Android-Berechtigungen hinzu
+        EOF
 
-    # 9. Erstelltes APK als Artefakt hochladen
+        echo "Führe Briefcase-Update aus, um SDK-Tools und Support-Pakete herunterzuladen..."
+        briefcase update android --update-tools --update-support
+        
+        echo "Starte den Briefcase-Build für Android..."
+        briefcase build android
+
+        # Briefcase platziert die APKs typischerweise in einem Unterordner.
+        # Wir suchen die generierte APK-Datei.
+        APK_PATH=$(find android -name "*.apk" | head -n 1)
+        if [ -z "$APK_PATH" ]; then
+            echo "FEHLER: APK-Datei nicht gefunden. Überprüfen Sie die Briefcase-Ausgabe auf Fehler."
+            exit 1
+        fi
+        echo "APK erfolgreich erstellt unter: $APK_PATH"
+        echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV # Setzt die Umgebungsvariable für den Upload
+
+    # 6. Erstelltes APK als Artefakt hochladen
     - name: APK-Artefakt hochladen
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: App-Debug-APK
-        # p4a legt die fertige APK-Datei standardmäßig im 'bin'-Verzeichnis ab
-        path: bin/*.apk
+        path: ${{ env.APK_PATH }} # Verwendet den dynamisch gefundenen Pfad
         retention-days: 7
         
