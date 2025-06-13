@@ -36,9 +36,10 @@ jobs:
     - name: Briefcase installieren
       run: |
         set -e
-        echo "Aktualisiere pip und installiere briefcase..."
+        echo "Aktualisiere pip und installiere briefcase (auf neueste Version)..."
         python -m pip install --upgrade pip
-        pip install briefcase
+        # KORREKTUR: Installiere die neueste Version von Briefcase
+        pip install briefcase 
         echo "Briefcase-Installation abgeschlossen."
 
     # 5. Bereite App-Struktur vor und erstelle die Android APK
@@ -59,7 +60,7 @@ jobs:
             echo "Entferne 'main_apk.py'."
             rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; exit 1; }
         fi
-        if [ -f "projekt.toml" ]; then # Falls noch vorhanden, obwohl es entfernt sein sollte
+        if [ -f "projekt.toml" ]; then
             echo "Entferne 'projekt.toml'."
             rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; exit 1; }
         fi
@@ -139,9 +140,7 @@ jobs:
         requires = [] 
 
         [tool.briefcase.app.mypythonapp] 
-        # WICHTIGE ÄNDERUNG: 'sources' zeigt jetzt direkt auf das Paketverzeichnis.
         sources = ["src/mypythonapp"] 
-        # 'main_module' ist jetzt der Dateiname der Hauptdatei, da das Paket selbst die Quelle ist.
         main_module = "main" 
         long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
         
@@ -151,6 +150,12 @@ jobs:
         min_sdk_version = "21"
         build_tools_version = "34.0.0"
         supported_abis = ["arm64-v8a"]
+        # Hinzugefügt, um die Warnung zu build_gradle_dependencies zu beheben
+        build_gradle_dependencies = [
+            "androidx.appcompat:appcompat:1.0.2",
+            "androidx.constraintlayout:constraintlayout:1.1.3",
+            "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
+        ]
         permissions = []
         EOF
         echo "pyproject.toml wurde generiert."
