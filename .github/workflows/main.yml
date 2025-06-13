@@ -35,60 +35,6 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Android SDK + Lizenzen vorbereiten
+    - name: Android SDK & Lizenzen vorbereiten
       run: |
-        mkdir -p "$HOME/.buildozer/android/platform"
-        cd "$HOME/.buildozer/android/platform"
-
-        # Aktuelle cmdline-tools laden
-        CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-        wget "$CMDLINE_TOOLS_URL" -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip -d cmdline-tools-temp
-        mkdir -p android-sdk/cmdline-tools/latest
-        mv cmdline-tools-temp/cmdline-tools/* android-sdk/cmdline-tools/latest/
-        export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
-
-        echo "export ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;36.0.0"
-
-    - name: Apache Ant installieren
-      run: |
-        cd "$HOME/.buildozer/android/platform"
-        ANT_VERSION=1.10.12
-        ANT_ARCHIVE="apache-ant-$ANT_VERSION-bin.tar.gz"
-        wget "https://downloads.apache.org/ant/binaries/$ANT_ARCHIVE"
-        tar -xf "$ANT_ARCHIVE"
-        rm "$ANT_ARCHIVE"
-        echo "$PWD/apache-ant-$ANT_VERSION/bin" >> $GITHUB_PATH
-
-    - name: Python-Abhängigkeiten installieren
-      run: |
-        python -m pip install --upgrade pip
-        pip install cython==0.29.24 buildozer==1.5.0
-
-    - name: buildozer.spec vorbereiten
-      run: |
-        sed -i 's/^# *android.sdk = 24/android.sdk = 31/' buildozer.spec
-        sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
-        sed -i '/^android.sdk_path =/d' buildozer.spec
-        sed -i '/^android.ndk_path =/d' buildozer.spec
-        sed -i '/^android.buildtool =/d' buildozer.spec
-        echo "android.buildtool = 36.0.0" >> buildozer.spec
-        echo "android.accept_sdk_license = 1" >> buildozer.spec
-
-    - name: APK bauen
-      run: |
-        buildozer -v android debug
-
-    - name: APK hochladen
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: voice-cloning-app-debug
-        path: |
-          bin/*.apk
-          .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
-        retention-days: 7
+        mkdir -p "$HOME/.buildozer/android/platform
