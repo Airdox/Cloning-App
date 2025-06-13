@@ -56,6 +56,12 @@ jobs:
         APP_PACKAGE_NAME="mypythonapp" 
         APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
 
+        # **NEUER SCHRITT**: Entferne projekt.toml, falls vorhanden, um Konflikte zu vermeiden
+        if [ -f "projekt.toml" ]; then
+            echo "Entferne 'projekt.toml', da sie Konflikte mit 'pyproject.toml' verursachen könnte."
+            rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; exit 1; }
+        fi
+
         # 1. Erstelle das Haupt-Quellverzeichnis und das Python-Paket-Verzeichnis
         echo "Erstelle Quellverzeichnis: $APP_SOURCE_ROOT"
         mkdir -p "$APP_SOURCE_ROOT" || { echo "FEHLER: Konnte Verzeichnis $APP_SOURCE_ROOT nicht erstellen."; exit 1; }
@@ -88,7 +94,7 @@ jobs:
             echo "in the Software without restriction, including without limitation the rights" >> LICENSE
             echo "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell" >> LICENSE
             echo "copies of the Software, and to permit persons to whom the Software is" >> LICENSE
-            echo "furnished to so, subject to the following conditions:" >> LICENSE
+            echo "furnished to do so, subject to the following conditions:" >> LICENSE
             echo "" >> LICENSE
             echo "The above copyright notice and this permission notice shall be included in all" >> LICENSE
             echo "copies or substantial portions of the Software." >> LICENSE
@@ -124,9 +130,7 @@ jobs:
         requires = [] 
 
         [tool.briefcase.app.mypythonapp] 
-        # WICHTIGE ÄNDERUNG: 'sources' zeigt jetzt auf das 'src'-Verzeichnis
         sources = ["src"] 
-        # 'main_module' ist weiterhin der Paketname, da sich main.py jetzt in src/mypythonapp/ befindet
         main_module = "mypythonapp" 
         long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
         
