@@ -36,11 +36,12 @@ jobs:
     - name: Briefcase installieren
       run: |
         set -e
-        echo "Aktualisiere pip und installiere briefcase (auf neueste Version)..."
+        echo "Aktualisiere pip und installiere eine spezifische Version von briefcase (0.3.17)..."
         python -m pip install --upgrade pip
-        # KORREKTUR: Installiere die neueste Version von Briefcase
-        pip install briefcase 
+        # KORREKTUR: Installiere die spezifische Version 0.3.17 von Briefcase, um TypeError zu vermeiden
+        pip install briefcase==0.3.17 
         echo "Briefcase-Installation abgeschlossen."
+        briefcase --version # Überprüfen, welche Version installiert wurde
 
     # 5. Bereite App-Struktur vor und erstelle die Android APK
     - name: Bereite App-Struktur vor und erstelle die Android APK
