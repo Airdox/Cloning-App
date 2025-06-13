@@ -23,7 +23,7 @@ jobs:
     - name: Python einrichten
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9' # Or your preferred Python version
+        python-version: '3.9' # Oder Ihre bevorzugte Python-Version
 
     # 3. System-Abhängigkeiten für python-for-android installieren
     - name: System-Abhängigkeiten installieren
@@ -34,12 +34,12 @@ jobs:
           autoconf libtool pkg-config zlib1g-dev \
           libncurses5-dev libncursesw5-dev libtinfo-dev \
           cmake libffi-dev libssl-dev patch wget \
-          openjdk-17-jdk # Install JDK via apt for p4a, to ensure it's available globally
+          openjdk-17-jdk # JDK über apt installieren, um sicherzustellen, dass es global verfügbar ist
 
-    # 4. Java Development Kit (JDK) einrichten (Optional, if installed via apt above)
-    # This step is redundant if openjdk-17-jdk is installed via apt.
-    # Keeping it here as a fallback or for specific setups.
-    - name: Java JDK einrichten (ensure path)
+    # 4. Java Development Kit (JDK) einrichten (Optional, falls oben über apt installiert)
+    # Dieser Schritt ist redundant, wenn openjdk-17-jdk über apt installiert wird.
+    # Behalte ihn hier als Fallback oder für spezifische Setups.
+    - name: Java JDK einrichten (Pfad sicherstellen)
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
@@ -62,7 +62,7 @@ jobs:
         echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
 
-        # Ensure that tools directory is in PATH for sdkmanager
+        # Sicherstellen, dass das Tools-Verzeichnis im PATH für sdkmanager ist
         echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest" >> $GITHUB_PATH
 
     # 6. Android SDK-Komponenten installieren und Lizenzen akzeptieren
@@ -72,47 +72,55 @@ jobs:
         yes | sdkmanager --licenses > /dev/null
 
         echo "Installiere proaktiv die von python-for-android benötigten SDK-Komponenten..."
-        # p4a might need specific platform versions, e.g., "platforms;android-33"
-        # and a specific build-tools version. Adjust as per your needs.
+        # p4a benötigt möglicherweise spezifische Plattformversionen, z.B. "platforms;android-33"
+        # und eine spezifische Build-Tools-Version. Passen Sie diese an Ihre Bedürfnisse an.
         sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
     # 7. Python-Abhängigkeiten installieren (für python-for-android)
     - name: Python-Abhängigkeiten installieren
       run: |
         python -m pip install --upgrade pip
-        # Corrected: Use an available version of python-for-android
+        # Korrigiert: Eine verfügbare Version von python-for-android verwenden
         pip install "cython==0.29.34" "python-for-android==2024.1.21"
 
     # 8. APK mit python-for-android erstellen
     - name: APK mit python-for-android erstellen
       run: |
-        # Example p4a command. YOU WILL NEED TO CUSTOMIZE THIS.
-        # - The '--name' and '--version' arguments are for your app.
-        # - The '--package' argument is your unique package ID (e.g., com.yourcompany.yourapp).
-        # - The '--requirements' argument lists your Python dependencies.
-        # - The '--private' argument points to your application's Python source code directory.
-        # - The '--main' argument points to your main.py file within the --private directory.
-        # - The '--arch' specifies the architecture. 'arm64-v8a' is common for modern devices.
-        # - The '--debug' flag builds a debuggable APK.
-        # - The '--sdk' and '--android-api' specifies the target SDK version.
-        # - The '--build-tools' specifies the build tools version.
+        # Beispiel p4a-Befehl. SIE MÜSSEN DIESEN ANPASSEN.
+        # - Die Argumente '--name' und '--version' sind für Ihre App.
+        # - Das Argument '--package' ist Ihre eindeutige Paket-ID (z.B. com.ihrefirma.ihreapp).
+        # - Das Argument '--requirements' listet Ihre Python-Abhängigkeiten auf.
+        # - Das Argument '--private' zeigt auf das Verzeichnis mit dem Python-Quellcode Ihrer Anwendung.
+        # - Das Argument '--main' zeigt auf Ihre main.py-Datei innerhalb des --private-Verzeichnisses.
+        # - Das Argument '--arch' gibt die Architektur an. 'arm64-v8a' ist gängig für moderne Geräte.
+        # - Das Flag '--debug' erstellt eine debugfähige APK.
+        # - '--sdk' und '--android-api' geben die Ziel-SDK-Version an.
+        # - '--build-tools' gibt die Build-Tools-Version an.
 
-        # Adjust these variables to match your project
+        # Passen Sie diese Variablen an Ihr Projekt an
         APP_NAME="MyPythonApp"
         APP_VERSION="1.0"
-        PACKAGE_NAME="org.example.myandroidapp" # IMPORTANT: Change this!
-        PYTHON_SOURCE_DIR="." # Assuming your Python code is in the root of the repo
-        MAIN_PY_FILE="main.py" # Your main Python entry point
+        PACKAGE_NAME="org.example.myandroidapp" # WICHTIG: Ändern Sie dies!
+        PYTHON_SOURCE_DIR="." # Angenommen, Ihr Python-Code befindet sich im Root des Repos
+        MAIN_PY_FILE="main.py" # Ihr Haupt-Python-Einstiegspunkt
 
-        # You might need to add other recipes for libraries like Kivy, Pygame, etc.
-        # Example for a Kivy app: --requirements=python3,kivy
-        # For a pure Python app: --requirements=python3
+        # Sie müssen möglicherweise weitere Recipes für Bibliotheken wie Kivy, Pygame usw. hinzufügen.
+        # Beispiel für eine Kivy-App: --requirements=python3,kivy
+        # Für eine reine Python-App: --requirements=python3
 
-        # Use specific versions for android-api and build-tools that you installed
-        ANDROID_SDK_VERSION="34" # Corresponds to platforms;android-34
-        ANDROID_BUILD_TOOLS_VERSION="34.0.0" # Corresponds to build-tools;34.0.0
+        # Verwenden Sie spezifische Versionen für android-api und build-tools, die Sie installiert haben
+        ANDROID_SDK_VERSION="34" # Entspricht platforms;android-34
+        ANDROID_BUILD_TOOLS_VERSION="34.0.0" # Entspricht build-tools;34.0.0
 
-        python -m p4a apk \
+        # Sicherstellen, dass die Python-Umgebung korrekt aktiviert ist und p4a zugänglich ist
+        # Die 'python -m'-Syntax ist generell robust, aber das Hinzufügen des vollständigen Pfads zu Python
+        # kann in einigen Fällen Mehrdeutigkeiten beseitigen.
+        # p4a-Installation vor dem Ausführen überprüfen
+        echo "Überprüfe die python-for-android Installation..."
+        pip show python-for-android || { echo "python-for-android nicht gefunden. Überprüfen Sie den vorherigen Installationsschritt."; exit 1; }
+
+        echo "Führe den python-for-android Build-Befehl aus..."
+        /opt/hostedtoolcache/Python/3.9.23/x64/bin/python -m p4a apk \
             --debug \
             --name "$APP_NAME" \
             --version "$APP_VERSION" \
@@ -123,8 +131,8 @@ jobs:
             --arch arm64-v8a \
             --android-api "$ANDROID_SDK_VERSION" \
             --build-tools "$ANDROID_BUILD_TOOLS_VERSION" \
-            --add-service your_service_name:your_service_file.py # Add this if you have services
-            # Add more p4a options as needed, e.g., --permission, --orientation, etc.
+            --add-service your_service_name:your_service_file.py # Fügen Sie dies hinzu, wenn Sie Services haben
+            # Weitere p4a-Optionen nach Bedarf hinzufügen, z.B. --permission, --orientation, etc.
 
     # 9. Erstelltes APK als Artefakt hochladen
     - name: APK-Artefakt hochladen
@@ -132,7 +140,7 @@ jobs:
       if: always()
       with:
         name: App-Debug-APK
-        # p4a places the APK in the 'bin' directory by default, similar to Buildozer
+        # p4a legt die fertige APK-Datei standardmäßig im 'bin'-Verzeichnis ab
         path: bin/*.apk
         retention-days: 7
         
