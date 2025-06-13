@@ -31,11 +31,11 @@ jobs:
           libncurses5-dev libncursesw5-dev libtinfo-dev \
           cmake libffi-dev libssl-dev patch wget
 
-    - name: JDK für Android und Ant einrichten
+    - name: JDK für Android und Ant einrichten # <-- HIER WIRD DIE ÄNDERUNG GEMACHT
       uses: actions/setup-java@v4
       with:
-        distribution: 'temurin' # Empfohlene, offene JDK-Distribution
-        java-version: '11'      # JDK 11 ist eine gute Wahl für Ant 1.9.4 und Android-Builds.
+        distribution: 'temurin'
+        java-version: '17'      # ÄNDERE DIES VON '11' AUF '17'
 
     - name: Apache Ant manuell vorbereiten
       run: |
@@ -50,6 +50,9 @@ jobs:
         tar -xf apache-ant-1.9.4-bin.tar.gz
         rm apache-ant-1.9.4-bin.tar.gz
         echo "Ant-Version (sollte jetzt mit JDK funktionieren):"
+        # Beachte: Apache Ant 1.9.4 ist alt und könnte Probleme mit Java 17 haben.
+        # Wenn der Build nach dieser Änderung wieder bei Ant fehlschlägt,
+        # müssen wir evtl. eine neuere Ant-Version oder eine andere Strategie für Ant wählen.
         /home/runner/.buildozer/android/platform/apache-ant-1.9.4/bin/ant -version
 
     - name: Installiere Python-Abhängigkeiten
@@ -60,12 +63,11 @@ jobs:
         pip install buildozer==1.5.0 pyjnius
 
     - name: Android SDK und NDK einrichten (mit spezialisierter Action)
-      uses: android-actions/setup-android@v2 # Verwende eine spezialisierte Action
+      uses: android-actions/setup-android@v2
       with:
-        api-level: 27 # Passend zu platforms;android-27
-        build-tools: 30.0.3 # Passend zu build-tools;30.0.3
-        ndk: 25b # Die benötigte NDK-Version
-        # Die Action setzt ANDROID_HOME und ANDROID_NDK_ROOT korrekt.
+        api-level: 27
+        build-tools: 30.0.3
+        ndk: 25b
 
     - name: Umgebung und Pfade debuggen (nach SDK/NDK Setup)
       run: |
@@ -78,11 +80,11 @@ jobs:
         echo "Buildozer version:"
         buildozer --version
         echo "Java version (should be from setup-java):"
-        java -version
+        java -version # DIES SOLLTE NUN JAVA 17 ANZEIGEN
         echo "ANT_HOME (if set): $ANT_HOME"
         echo "PATH: $PATH"
-        echo "ANDROID_HOME: $ANDROID_HOME" # WICHTIG: Prüfen, ob von der Action gesetzt
-        echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT" # WICHTIG: Prüfen, ob von der Action gesetzt
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
         
         # Zusätzliche Überprüfung der SDK-Struktur und sdkmanager
         echo "Inhalt von $ANDROID_HOME/tools/bin/ :"
@@ -96,10 +98,6 @@ jobs:
         echo "Passe buildozer.spec an, um Pfade von setup-android Action zu nutzen..."
         # Stellen Sie sicher, dass android.sdk und android.ndk in buildozer.spec
         # auf die gewünschten Versionen gesetzt sind (nicht auskommentiert).
-        # Wir werden android.sdk_path und android.ndk_path explizit setzen,
-        # da die setup-android Action ANDROID_HOME und ANDROID_NDK_ROOT definiert.
-        
-        # Sicherstellen, dass die Android SDK und NDK Versionen in buildozer.spec aktiv sind
         sed -i 's/^# *android.sdk = 24/android.sdk = 24/' buildozer.spec
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
@@ -108,13 +106,10 @@ jobs:
         sed -i '/^android.ndk_path =/d' buildozer.spec
 
         # Fügen Sie Pfade zu den von der Action eingerichteten SDK/NDK-Verzeichnissen hinzu.
-        # Diese Variablen ($ANDROID_HOME, $ANDROID_NDK_ROOT) werden von der 'setup-android' Action gesetzt.
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
 
         # Fügen Sie eine Regel für Buildozer hinzu, um sicherzustellen, dass die cmdline-tools installiert werden.
-        # Dies ist eine gängige Einstellung für neuere Buildozer-Versionen.
-        # Prüfen Sie Ihre buildozer.spec, ob diese Zeile bereits existiert oder benötigt wird.
         if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
           echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
           echo "Hinzugefügt: android.add_aab_cmdline_tools = 1"
