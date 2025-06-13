@@ -84,16 +84,15 @@ jobs:
         # build-tools: 30.0.3 # <-- Diese Zeile wurde entfernt, da wir manuell installieren
         ndk: 25b
 
-    - name: Android Build-Tools 36.0.0 und alle Lizenzen akzeptieren (verbessert)
+    - name: Android Build-Tools 36.0.0 und alle Lizenzen akzeptieren
       run: |
         echo "Installiere Android Build-Tools 36.0.0 und akzeptiere alle Lizenzen..."
         # Stellen Sie sicher, dass ANDROID_HOME gesetzt ist. Die setup-android Action tut dies.
 
         # Installiere build-tools;36.0.0 explizit.
-        # WICHTIG: Das 'yes |' leitet die Zustimmung an den sdkmanager weiter.
         yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.0" || true
         
-        # Installiere auch die platform-tools, die Buildozer benötigt.
+        # Installiere auch die platform-tools, die Buildozer benötigen könnte.
         yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "platform-tools" || true
 
         # Akzeptiere ALLE ausstehenden Lizenzen. Dies ist entscheidend,
@@ -138,15 +137,17 @@ jobs:
         sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec # Passen Sie dies an Ihre Ziel-API an (hier 27)
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
-        # Entferne eventuell vorhandene sdk_path, ndk_path, buildtool Einträge
+        # Entferne eventuell vorhandene sdk_path, ndk_path, buildtool, accept_sdk_license Einträge
         sed -i '/^android.sdk_path =/d' buildozer.spec
         sed -i '/^android.ndk_path =/d' buildozer.spec
         sed -i '/^android.buildtool =/d' buildozer.spec
-        
+        sed -i '/^android.accept_sdk_license =/d' buildozer.spec # NEU: Auch diesen entfernen, um neu zu setzen
+
         # Füge die Pfade und die explizite Build-Tool-Version hinzu
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
-        echo "android.buildtool = 36.0.0" >> buildozer.spec # Explizite Zuweisung der Build-Tool-Version
+        echo "android.buildtool = 36.0.0" >> buildozer.spec
+        echo "android.accept_sdk_license = 1" >> buildozer.spec # HINZUGEFÜGT: Explizite Lizenzakzeptanz für Buildozer
 
         # Stelle sicher, dass android.add_aab_cmdline_tools gesetzt ist
         if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
