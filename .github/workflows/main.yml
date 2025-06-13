@@ -35,7 +35,7 @@ jobs:
           libncurses5-dev libncursesw5-dev libtinfo-dev \
           cmake libffi-dev libssl-dev patch wget \
           openjdk-17-jdk \
-          automake # <--- HIER HINZUGEFÜGT: Stellt sicher, dass automake verfügbar ist
+          automake # Stellt sicher, dass automake verfügbar ist
 
     # 4. Java Development Kit (JDK) einrichten (Optional, falls oben über apt installiert)
     # Dieser Schritt ist redundant, wenn openjdk-17-jdk über apt installiert wird.
@@ -79,7 +79,8 @@ jobs:
     - name: Python-Abhängigkeiten installieren
       run: |
         python -m pip install --upgrade pip
-        pip install "cython==0.29.34" "python-for-android==2024.1.21"
+        # WICHTIGE ÄNDERUNG: Downgrade von python-for-android
+        pip install "cython==0.29.34" "python-for-android==2023.11.04" 
 
         # Fügt das Benutzer-Bin-Verzeichnis von pip zum PATH hinzu, damit 'p4a' gefunden wird
         echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
