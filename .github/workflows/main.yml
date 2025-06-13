@@ -20,18 +20,6 @@ jobs:
       with:
         python-version: '3.9.13'  # Exakt die Version aus buildozer.spec
 
-    - name: Check for buildozer.spec
-      run: |
-        if [ -f "buildozer.spec" ]; then
-          echo "buildozer.spec found in current directory"
-          cat buildozer.spec
-        else
-          echo "ERROR: buildozer.spec not found in current directory"
-          echo "Current directory contents:"
-          ls -la
-          exit 1
-        fi
-
     - name: Install System Dependencies
       run: |
         sudo apt-get update
@@ -51,6 +39,12 @@ jobs:
       run: |
         # Direkte Installation von pyjnius ohne Patch
         pip install pyjnius
+
+    - name: Accept Android SDK Licenses
+      run: |
+        mkdir -p /home/runner/.android
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > /home/runner/.android/repositories.cfg
+        echo "y" | buildozer android update
 
     - name: Build APK with Buildozer
       run: |
