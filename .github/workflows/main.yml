@@ -59,17 +59,26 @@ jobs:
         pip install cython==0.29.24
         pip install buildozer==1.5.0 pyjnius
 
-    - name: Android SDK und NDK einrichten (mit spezialisierter Action und Lizenzakzeptanz)
-      uses: android-actions/setup-android@v2 # Verwende eine spezialisierte Action
+    - name: Android SDK und NDK einrichten (mit spezialisierter Action)
+      uses: android-actions/setup-android@v2
       with:
-        api-level: 27        # Passend zu platforms;android-27 in buildozer.spec
-        build-tools: 30.0.3  # Passend zu build-tools;30.0.3 in buildozer.spec
-        ndk: 25b             # Die benötigte NDK-Version
-        always-accept-licenses: true # <-- HINZUGEFÜGT: Akzeptiert automatisch alle Lizenzen
+        api-level: 27        # Deine gewünschte API-Level
+        build-tools: 30.0.3  # Deine gewünschten Build-Tools
+        ndk: 25b             # Deine gewünschte NDK-Version
+        # always-accept-licenses: true # <-- DIESE ZEILE ENTFERNEN ODER AUSKOMMENTIEREN
 
-    - name: Umgebung und Pfade debuggen (nach SDK/NDK Setup)
+    - name: Android SDK Lizenzen explizit akzeptieren # <-- NEUER SCHRITT: Direkte Lizenzakzeptanz
       run: |
-        echo "--- Aktueller Umgebungs-Debug (nach SDK/NDK Setup) ---"
+        echo "Akzeptiere Android SDK Lizenzen explizit..."
+        # Verwende den sdkmanager direkt mit 'yes' Eingabe, um alle Lizenzen zu akzeptieren.
+        # Wichtig: ANDROID_HOME muss hier korrekt gesetzt sein (was die setup-android Action tut).
+        yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        # Der || true am Ende stellt sicher, dass der Schritt nicht fehlschlägt, falls sdkmanager aus irgendeinem Grund einen Exit-Code ungleich 0 zurückgibt
+        # (z.B. wenn alle Lizenzen bereits akzeptiert wurden).
+
+    - name: Umgebung und Pfade debuggen (nach SDK/NDK Setup und Lizenzakzeptanz)
+      run: |
+        echo "--- Aktueller Umgebungs-Debug (nach SDK/NDK Setup und Lizenzakzeptanz) ---"
         echo "Current directory: $(pwd)"
         echo "Files in current directory:"
         ls -la
@@ -90,7 +99,7 @@ jobs:
         echo "Inhalt von $ANDROID_HOME/cmdline-tools/latest/bin/ :"
         ls -la "$ANDROID_HOME/cmdline-tools/latest/bin/" || echo "$ANDROID_HOME/cmdline-tools/latest/bin/ nicht gefunden."
         
-        # Überprüfen, ob die Build-Tools wirklich da sind
+        # Überprüfen, ob die Build-Tools wirklich da sind (nach Lizenzakzeptanz)
         echo "Inhalt von $ANDROID_HOME/build-tools/ :"
         ls -la "$ANDROID_HOME/build-tools/" || echo "$ANDROID_HOME/build-tools/ nicht gefunden."
         ls -la "$ANDROID_HOME/build-tools/30.0.3/aidl" || echo "Aidl 30.0.3 nicht gefunden."
@@ -99,22 +108,15 @@ jobs:
     - name: buildozer.spec für GitHub Actions anpassen (Pfade von Action nutzen)
       run: |
         echo "Passe buildozer.spec an, um Pfade von setup-android Action zu nutzen..."
-        # Stellen Sie sicher, dass android.sdk und android.ndk in buildozer.spec
-        # auf die gewünschten Versionen gesetzt sind (nicht auskommentiert).
-        sed -i 's/^# *android.sdk = 24/android.sdk = 24/' buildozer.spec # Aktivieren Sie die API Level Zeile
-        sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec # Aktivieren Sie die NDK Zeile
+        sed -i 's/^# *android.sdk = 24/android.sdk = 24/' buildozer.spec
+        sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
-        # Entfernen Sie alle Zeilen, die android.sdk_path oder android.ndk_path zuvor gesetzt haben.
         sed -i '/^android.sdk_path =/d' buildozer.spec
         sed -i '/^android.ndk_path =/d' buildozer.spec
 
-        # Fügen Sie Pfade zu den von der Action eingerichteten SDK/NDK-Verzeichnissen hinzu.
-        # Diese Variablen ($ANDROID_HOME, $ANDROID_NDK_ROOT) werden von der 'setup-android' Action gesetzt.
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
 
-        # Fügen Sie eine Regel für Buildozer hinzu, um sicherzustellen, dass die cmdline-tools installiert werden.
-        # Dies ist eine gängige Einstellung für neuere Buildozer-Versionen.
         if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
           echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
           echo "Hinzugefügt: android.add_aab_cmdline_tools = 1"
