@@ -47,66 +47,30 @@ jobs:
         #
         # WICHTIG: Im echten Projekt sollten Sie diese Verzeichnisstruktur
         # (z.B. 'mypythonapp/__init__.py', 'mypythonapp/main.py')
-        # in Ihrem Git-Repository haben!
+        # und die 'pyproject.toml' **direkt in Ihrem Git-Repository** haben!
         
         APP_PACKAGE_DIR="mypythonapp" # Muss dem App-Namen in pyproject.toml entsprechen
         
         # Erstelle das Paketverzeichnis, falls es nicht existiert
+        echo "Erstelle Paketverzeichnis: $APP_PACKAGE_DIR"
         mkdir -p "$APP_PACKAGE_DIR"
         
         # Erstelle eine leere __init__.py, falls nicht vorhanden (macht es zu einem Python-Paket)
+        echo "Erstelle __init__.py in $APP_PACKAGE_DIR/__init__.py"
         if [ ! -f "$APP_PACKAGE_DIR/__init__.py" ]; then
             touch "$APP_PACKAGE_DIR/__init__.py"
         fi
         
         # Verschiebe oder erstelle main.py im Paketverzeichnis, falls notwendig
         # (passen Sie dies an, wenn Ihre main.py woanders ist oder anders heißt)
+        echo "Erstelle main.py in $APP_PACKAGE_DIR/main.py"
         if [ ! -f "$APP_PACKAGE_DIR/main.py" ]; then
             echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_DIR/main.py"
         fi
 
-        # Erstellen/Aktualisieren Sie die pyproject.toml-Datei im Root Ihres Repositorys.
-        # Passen Sie die Werte für Ihre tatsächliche App an.
-        cat <<EOF > pyproject.toml
-        [project]
-        name = "MyPythonApp"
-        version = "1.0.0"
-        description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
-        requires-python = ">=3.9"
-        # Korrigierte Lizenzdefinition nach PEP 621
-        license = { file = "LICENSE" } # Geht davon aus, dass es eine LICENSE-Datei gibt
-
-        [tool.briefcase]
-        project_name = "MyPythonApp"
-        bundle = "org.example" # Ihre eindeutige Paket-ID (z.B. com.ihrefirma)
-        author = "Ihr Name"
-        author_email = "ihre.email@example.com"
-        url = "https://example.com/mypythonapp"
-        # Die 'license'-Definition unter [tool.briefcase] wird ignoriert, wenn [project].license existiert.
-        # Sie können sie hier trotzdem lassen, wenn Sie möchten, aber es ist redundant.
-        license = "MIT" # Redundant, da [project].license gesetzt ist.
-        requires = [] # Fügen Sie hier Ihre Python-Abhängigkeiten hinzu (z.B. ["kivy", "requests"])
-
-        [tool.briefcase.app.mypythonapp] # Der Name hier muss dem 'project.name' entsprechen (kleingeschrieben und Bindestriche statt Leerzeichen)
-        # sources zeigt auf das Verzeichnis, das das App-Paket enthält.
-        # Da 'mypythonapp' direkt im Root liegt, ist sources = ["."] weiterhin korrekt.
-        sources = ["."] 
-        # main_module ist jetzt der Name des Pakets (mypythonapp), da Briefcase den Einstiegspunkt
-        # als mypythonapp.__main__ oder mypythonapp.main erwartet.
-        main_module = "mypythonapp" # Name des Pakets, nicht der Datei!
-        long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
-        
-        [tool.briefcase.app.mypythonapp.android]
-        target_device = "generic" # Kann auch "Pixel 4" oder andere sein
-        sdk_version = "34" # Die Android API-Level, auf das Sie abzielen
-        min_sdk_version = "21" # Die minimale Android API-Level, die Ihre App unterstützt
-        build_tools_version = "34.0.0" # Die Android Build Tools Version
-        supported_abis = ["arm64-v8a"] # Ziel-Architekturen. arm64-v8a ist für moderne Geräte üblich.
-        # permissions = ["android.permission.INTERNET"] # Optional: Fügen Sie hier benötigte Android-Berechtigungen hinzu
-        EOF
-
         # Optional: Erstelle eine leere LICENSE-Datei, wenn nicht vorhanden,
         # um die Lizenzwarnung zu vermeiden.
+        echo "Erstelle/prüfe LICENSE-Datei..."
         if [ ! -f LICENSE ]; then
             echo "Copyright (c) $(date +%Y) Ihr Name" > LICENSE
             echo "" >> LICENSE
@@ -132,13 +96,60 @@ jobs:
         fi
 
 
+        # Erstellen/Aktualisieren Sie die pyproject.toml-Datei im Root Ihres Repositorys.
+        # Passen Sie die Werte für Ihre tatsächliche App an.
+        echo "Generiere pyproject.toml..."
+        cat <<EOF > pyproject.toml
+        [project]
+        name = "MyPythonApp"
+        version = "1.0.0"
+        description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
+        requires-python = ">=3.9"
+        # KORREKTUR: Lizenzdefinition nach PEP 621.
+        license = { file = "LICENSE" } # Verweist auf die LICENSE-Datei im Root
+
+        [tool.briefcase]
+        project_name = "MyPythonApp"
+        bundle = "org.example" # Ihre eindeutige Paket-ID (z.B. com.ihrefirma)
+        author = "Ihr Name"
+        author_email = "ihre.email@example.com"
+        url = "https://example.com/mypythonapp"
+        requires = [] # Fügen Sie hier Ihre Python-Abhängigkeiten hinzu (z.B. ["kivy", "requests"])
+
+        [tool.briefcase.app.mypythonapp] # Der Name hier muss dem 'project.name' entsprechen (kleingeschrieben und Bindestriche statt Leerzeichen)
+        sources = ["."] # sources zeigt auf das Verzeichnis, das das App-Paket enthält (hier: Root)
+        # KORREKTUR: main_module ist der NAME DES PAKETS (mypythonapp), nicht der Datei.
+        # Briefcase erwartet dann, dass es eine __main__.py im Paket gibt oder eine main.py,
+        # die über 'python -m mypythonapp' gestartet werden kann.
+        main_module = "mypythonapp" 
+        long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
+        
+        [tool.briefcase.app.mypythonapp.android]
+        target_device = "generic"
+        sdk_version = "34" 
+        min_sdk_version = "21"
+        build_tools_version = "34.0.0"
+        supported_abis = ["arm64-v8a"]
+        permissions = []
+        EOF
+
+        # --- DEBUGGING-SCHRITTE ---
+        echo "--- Dateistruktur nach Vorbereitung ---"
+        ls -R
+        echo "--- Inhalt von pyproject.toml ---"
+        cat pyproject.toml
+        echo "-----------------------------------"
+        # --- ENDE DEBUGGING-SCHRITTE ---
+
         echo "Starte den Briefcase-Build für Android..."
         # Briefcase build android wird bei Bedarf automatisch briefcase create und SDK-Installationen verwalten.
         briefcase build android
 
         # Briefcase platziert die APKs typischerweise in einem Unterordner wie 'android/gradle/MyPythonApp/app/build/outputs/apk/debug/'.
-        # Wir suchen die generierte APK-Datei.
-        APK_PATH=$(find android -name "*.apk" | head -n 1)
+        # Wir suchen die generierte APK-Datei robuster.
+        echo "Suche nach der generierten APK-Datei..."
+        APK_PATH=$(find android -name "*.apk" -print -quit) # -quit beendet nach dem ersten Fund
+        
         if [ -z "$APK_PATH" ]; then
             echo "FEHLER: APK-Datei nicht gefunden. Überprüfen Sie die Briefcase-Ausgabe auf Fehler."
             exit 1
