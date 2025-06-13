@@ -11,6 +11,7 @@ on:
 
 jobs:
   build:
+    # Der Job läuft auf der neuesten Ubuntu-Version
     runs-on: ubuntu-latest
 
     steps:
@@ -58,11 +59,12 @@ jobs:
         echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
 
-    # 6. Android SDK-Komponenten installieren und Lizenzen akzeptieren (VERBESSERT)
+    # 6. Android SDK-Komponenten installieren und Lizenzen akzeptieren (KORRIGIERT)
     - name: SDK-Lizenzen akzeptieren und spezifische Build-Tools installieren
       run: |
         echo "Akzeptiere automatisch alle SDK-Lizenzen..."
-        yes | sdkmanager --licenses
+        # Dieser Schritt ist entscheidend, um den Build-Fehler zu verhindern
+        yes | sdkmanager --licenses > /dev/null
         
         echo "Installiere proaktiv die von Buildozer benötigten SDK-Komponenten..."
         # Wir installieren die genaue Build-Tools-Version (36.0.0 laut Fehlerlog),
@@ -75,7 +77,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install "cython==0.29.34" buildozer==1.5.0
 
-    # 8. buildozer.spec für den CI-Build anpassen (VERBESSERT)
+    # 8. buildozer.spec für den CI-Build anpassen
     - name: buildozer.spec für CI anpassen
       run: |
         echo "Stelle sicher, dass buildozer.spec die korrekte Build-Tools-Version verwendet..."
@@ -87,29 +89,19 @@ jobs:
         echo "Inhalt der angepassten buildozer.spec:"
         cat buildozer.spec
 
-    # 9. Debugging-Informationen zur Umgebung ausgeben
-    - name: Umgebung und Pfade vor dem Build prüfen
-      run: |
-        echo "--- Umgebungs-Debug ---"
-        java -version
-        python --version
-        buildozer --version
-        echo "ANDROID_HOME: $ANDROID_HOME"
-        echo "Installierte SDK-Pakete:"
-        sdkmanager --list_installed
-        echo "--- Ende Debug ---"
-
-    # 10. APK mit Buildozer erstellen
+    # 9. APK mit Buildozer erstellen
     - name: APK mit Buildozer erstellen
       run: |
+        # -v gibt detaillierte Logs aus, was bei der Fehlersuche hilft
         buildozer -v android debug
 
-    # 11. Erstelltes APK als Artefakt hochladen
+    # 10. Erstelltes APK als Artefakt hochladen
     - name: APK-Artefakt hochladen
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: App-Debug-APK
+        # Buildozer legt die fertige APK-Datei standardmäßig im 'bin'-Verzeichnis ab
         path: bin/*.apk
         retention-days: 7
         
