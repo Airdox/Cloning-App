@@ -50,17 +50,26 @@ jobs:
         echo "Aktuelles Arbeitsverzeichnis: $(pwd)"
         echo "Benutzer: $(whoami)"
 
+        # Entferne Buildozer-spezifische und andere potenziell störende Dateien
+        if [ -f "buildozer.spec" ]; then
+            echo "Entferne 'buildozer.spec'."
+            rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; exit 1; }
+        fi
+        if [ -f "main_apk.py" ]; then
+            echo "Entferne 'main_apk.py'."
+            rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; exit 1; }
+        fi
+        if [ -f "projekt.toml" ]; then # Falls noch vorhanden, obwohl es entfernt sein sollte
+            echo "Entferne 'projekt.toml'."
+            rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; exit 1; }
+        fi
+
+
         # Definiere das Stammverzeichnis für den App-Quellcode
         APP_SOURCE_ROOT="src" 
         # Definiere den Namen des Python-Paket-Ordners (innerhalb von APP_SOURCE_ROOT)
         APP_PACKAGE_NAME="mypythonapp" 
         APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
-
-        # **NEUER SCHRITT**: Entferne projekt.toml, falls vorhanden, um Konflikte zu vermeiden
-        if [ -f "projekt.toml" ]; then
-            echo "Entferne 'projekt.toml', da sie Konflikte mit 'pyproject.toml' verursachen könnte."
-            rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; exit 1; }
-        fi
 
         # 1. Erstelle das Haupt-Quellverzeichnis und das Python-Paket-Verzeichnis
         echo "Erstelle Quellverzeichnis: $APP_SOURCE_ROOT"
@@ -130,8 +139,10 @@ jobs:
         requires = [] 
 
         [tool.briefcase.app.mypythonapp] 
-        sources = ["src"] 
-        main_module = "mypythonapp" 
+        # WICHTIGE ÄNDERUNG: 'sources' zeigt jetzt direkt auf das Paketverzeichnis.
+        sources = ["src/mypythonapp"] 
+        # 'main_module' ist jetzt der Dateiname der Hauptdatei, da das Paket selbst die Quelle ist.
+        main_module = "main" 
         long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
         
         [tool.briefcase.app.mypythonapp.android]
