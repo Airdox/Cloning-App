@@ -38,7 +38,7 @@ jobs:
         set -e
         echo "Aktualisiere pip und installiere eine spezifische Version von briefcase (0.3.17)..."
         python -m pip install --upgrade pip
-        # KORREKTUR: Installiere die spezifische Version 0.3.17 von Briefcase, um TypeError zu vermeiden
+        # KORREKTUR: Installiere die spezifische Version 0.3.17 von Briefcase
         pip install briefcase==0.3.17 
         echo "Briefcase-Installation abgeschlossen."
         briefcase --version # Überprüfen, welche Version installiert wurde
@@ -151,12 +151,13 @@ jobs:
         min_sdk_version = "21"
         build_tools_version = "34.0.0"
         supported_abis = ["arm64-v8a"]
-        # Hinzugefügt, um die Warnung zu build_gradle_dependencies zu beheben
         build_gradle_dependencies = [
             "androidx.appcompat:appcompat:1.0.2",
             "androidx.constraintlayout:constraintlayout:1.1.3",
             "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
         ]
+        # KORREKTUR: Erzwinge die Vorlagenversion, die mit Briefcase 0.3.17 kompatibel ist.
+        template = "https://github.com/beeware/briefcase-android-gradle-template.git#v0.3.17"
         permissions = []
         EOF
         echo "pyproject.toml wurde generiert."
