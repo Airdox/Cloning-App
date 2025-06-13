@@ -22,6 +22,7 @@ jobs:
 
     - name: System-Abhängigkeiten installieren
       run: |
+        echo "Installiere System-Abhängigkeiten..."
         sudo apt-get update
         sudo apt-get install -y \
           git zip unzip python3-pip \
@@ -77,34 +78,41 @@ jobs:
         pip install cython==0.29.24
         pip install buildozer==1.5.0 pyjnius
 
-    - name: Android SDK und NDK einrichten (mit spezialisierter Action und spezifischen Versionen)
-      uses: android-actions/setup-android@v2
-      with:
-        api-level: 27
-        # build-tools: 30.0.3 # <-- Diese Zeile wurde entfernt, da wir manuell installieren
-        ndk: 25b
+    # REMOVED: Der Schritt "Android SDK und NDK einrichten" (uses: android-actions/setup-android@v2)
+    # REMOVED: Der Schritt "Android Build-Tools 36.0.0 und alle Lizenzen akzeptieren"
+    # Buildozer wird SDK/NDK und Lizenzen selbst verwalten, wenn die Pfade nicht gesetzt sind.
 
-    - name: Android Build-Tools 36.0.0 und alle Lizenzen akzeptieren
+    - name: buildozer.spec für GitHub Actions anpassen (Pfade von Buildozer nutzen)
       run: |
-        echo "Installiere Android Build-Tools 36.0.0 und akzeptiere alle Lizenzen..."
-        # Stellen Sie sicher, dass ANDROID_HOME gesetzt ist. Die setup-android Action tut dies.
-
-        # Installiere build-tools;36.0.0 explizit.
-        yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.0" || true
+        echo "Passe buildozer.spec an, um Buildozer die SDK/NDK-Verwaltung zu überlassen..."
+        # Setze android.sdk auf 27 und android.ndk auf 25b, falls noch nicht geschehen
+        sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec
+        sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
-        # Installiere auch die platform-tools, die Buildozer benötigen könnte.
-        yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "platform-tools" || true
+        # Entferne eventuell vorhandene sdk_path, ndk_path, buildtool, accept_sdk_license Einträge
+        # WICHTIG: KEINE NEUEN sdk_path oder ndk_path setzen, damit Buildozer sie herunterlädt.
+        sed -i '/^android.sdk_path =/d' buildozer.spec
+        sed -i '/^android.ndk_path =/d' buildozer.spec
+        sed -i '/^android.buildtool =/d' buildozer.spec
+        sed -i '/^android.accept_sdk_license =/d' buildozer.spec
 
-        # Akzeptiere ALLE ausstehenden Lizenzen. Dies ist entscheidend,
-        # da Buildozer sonst bei jedem neuen Komponenten-Check hängen bleiben könnte.
-        yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        # Explizite Zuweisung der Build-Tool-Version
+        echo "android.buildtool = 36.0.0" >> buildozer.spec
+        # HINZUGEFÜGT: Explizite Lizenzakzeptanz für Buildozer
+        echo "android.accept_sdk_license = 1" >> buildozer.spec 
 
-        echo "Alle erforderlichen SDK-Komponenten installiert und Lizenzen akzeptiert."
+        # Stelle sicher, dass android.add_aab_cmdline_tools gesetzt ist
+        if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
+          echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
+          echo "Hinzugefügt: android.add_aab_cmdline_tools = 1"
+        fi
 
+        echo "Aktualisierter Inhalt von buildozer.spec:"
+        cat buildozer.spec
 
-    - name: Umgebung und Pfade debuggen (nach allen SDK/NDK Setups und Lizenzakzeptanz)
+    - name: Umgebung und Pfade debuggen (Buildozer-Pfade)
       run: |
-        echo "--- Aktueller Umgebungs-Debug ---"
+        echo "--- Aktueller Umgebungs-Debug (nach Buildozer-Konfiguration) ---"
         echo "Current directory: $(pwd)"
         ls -la
         echo "Python version:"
@@ -115,48 +123,19 @@ jobs:
         java -version
         echo "ANT_HOME (if set): $ANT_HOME"
         echo "PATH: $PATH"
-        echo "ANDROID_HOME: $ANDROID_HOME"
-        echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
+        # ANDROID_HOME und ANDROID_NDK_ROOT werden von Buildozer intern gesetzt,
+        # wenn es die SDK/NDK Komponenten herunterlädt.
+        echo "Buildozer Android SDK Pfad (erwartet nach Download): /home/runner/.buildozer/android/platform/android-sdk"
+        echo "Buildozer Android NDK Pfad (erwartet nach Download): /home/runner/.buildozer/android/platform/android-ndk-r25b"
         
-        echo "Inhalt von $ANDROID_HOME/tools/bin/ :"
-        ls -la "$ANDROID_HOME/tools/bin/" || echo "$ANDROID_HOME/tools/bin/ nicht gefunden."
-        echo "Inhalt von $ANDROID_HOME/cmdline-tools/latest/bin/ :"
-        ls -la "$ANDROID_HOME/cmdline-tools/latest/bin/" || echo "$ANDROID_HOME/cmdline-tools/latest/bin/ nicht gefunden."
+        # Versuche, die Build-Tools in Buildozers Pfad zu finden
+        echo "Inhalt von /home/runner/.buildozer/android/platform/android-sdk/build-tools/ :"
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/build-tools/ || echo "Build-Tools Ordner in Buildozer-Pfad nicht gefunden."
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/build-tools/36.0.0/aidl || echo "Aidl 36.0.0 in Buildozer-Pfad nicht gefunden."
         
-        echo "Inhalt von $ANDROID_HOME/build-tools/ :"
-        ls -la "$ANDROID_HOME/build-tools/" || echo "$ANDROID_HOME/build-tools/ nicht gefunden."
-        ls -la "$ANDROID_HOME/build-tools/36.0.0/aidl" || echo "Aidl 36.0.0 nicht gefunden." # <-- Prüfe auf 36.0.0
-        echo "Inhalt von $ANDROID_HOME/platform-tools/ :"
-        ls -la "$ANDROID_HOME/platform-tools/" || echo "Platform-Tools nicht gefunden." # <-- Prüfe auf platform-tools
+        echo "Inhalt von /home/runner/.buildozer/android/platform/android-sdk/platform-tools/ :"
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/platform-tools/ || echo "Platform-Tools Ordner in Buildozer-Pfad nicht gefunden."
         echo "--- Ende Umgebungs-Debug ---"
-
-    - name: buildozer.spec für GitHub Actions anpassen (Pfade von Action nutzen)
-      run: |
-        echo "Passe buildozer.spec an, um Pfade von setup-android Action zu nutzen..."
-        # Setze android.sdk auf 27 und android.ndk auf 25b, falls noch nicht geschehen
-        sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec # Passen Sie dies an Ihre Ziel-API an (hier 27)
-        sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
-        
-        # Entferne eventuell vorhandene sdk_path, ndk_path, buildtool, accept_sdk_license Einträge
-        sed -i '/^android.sdk_path =/d' buildozer.spec
-        sed -i '/^android.ndk_path =/d' buildozer.spec
-        sed -i '/^android.buildtool =/d' buildozer.spec
-        sed -i '/^android.accept_sdk_license =/d' buildozer.spec # NEU: Auch diesen entfernen, um neu zu setzen
-
-        # Füge die Pfade und die explizite Build-Tool-Version hinzu
-        echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
-        echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
-        echo "android.buildtool = 36.0.0" >> buildozer.spec
-        echo "android.accept_sdk_license = 1" >> buildozer.spec # HINZUGEFÜGT: Explizite Lizenzakzeptanz für Buildozer
-
-        # Stelle sicher, dass android.add_aab_cmdline_tools gesetzt ist
-        if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
-          echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
-          echo "Hinzugefügt: android.add_aab_cmdline_tools = 1"
-        fi
-
-        echo "Aktualisierter Inhalt von buildozer.spec:"
-        cat buildozer.spec
 
     - name: APK mit Buildozer erstellen (Debug-Modus)
       run: |
