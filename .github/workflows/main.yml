@@ -37,20 +37,21 @@ jobs:
         distribution: 'temurin'
         java-version: '17'      # Beibehalten auf Java 17, da sdkmanager dies benötigt.
 
-    - name: Apache Ant manuell vorbereiten
+    - name: Apache Ant manuell vorbereiten # <-- HIER WIRD DIE ÄNDERUNG GEMACHT
       run: |
-        echo "Bereite Apache Ant 1.9.4 manuell vor..."
+        echo "Bereite Apache Ant 1.10.12 manuell vor..." # <-- Version im Echo anpassen
         mkdir -p /home/runner/.buildozer/android/platform
         cd /home/runner/.buildozer/android/platform
-        # Versuche verschiedene Download-URLs, falls eine fehlschlägt
-        wget -q https://downloads.apache.org/ant/binaries/apache-ant-1.9.4-bin.tar.gz || \
-        wget -q https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz || \
-        wget -q https://dlcdn.apache.org/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+        # Versuche verschiedene Download-URLs für Ant 1.10.12
+        # Die URLs könnten sich ändern, daher mehrere Optionen
+        wget -q https://downloads.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz || \
+        wget -q https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.12-bin.tar.gz || \
+        wget -q https://dlcdn.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz
         
-        tar -xf apache-ant-1.9.4-bin.tar.gz
-        rm apache-ant-1.9.4-bin.tar.gz
+        tar -xf apache-ant-1.10.12-bin.tar.gz # <-- Dateiname anpassen
+        rm apache-ant-1.10.12-bin.tar.gz     # <-- Dateiname anpassen
         echo "Ant-Version (sollte jetzt mit JDK funktionieren):"
-        /home/runner/.buildozer/android/platform/apache-ant-1.9.4/bin/ant -version
+        /home/runner/.buildozer/android/platform/apache-ant-1.10.12/bin/ant -version # <-- Ordnername anpassen
 
     - name: Installiere Python-Abhängigkeiten
       run: |
@@ -62,19 +63,14 @@ jobs:
     - name: Android SDK und NDK einrichten (mit spezialisierter Action)
       uses: android-actions/setup-android@v2
       with:
-        api-level: 27        # Deine gewünschte API-Level
-        build-tools: 30.0.3  # Deine gewünschten Build-Tools
-        ndk: 25b             # Deine gewünschte NDK-Version
-        # always-accept-licenses: true # <-- DIESE ZEILE ENTFERNEN ODER AUSKOMMENTIEREN
+        api-level: 27
+        build-tools: 30.0.3
+        ndk: 25b
 
-    - name: Android SDK Lizenzen explizit akzeptieren # <-- NEUER SCHRITT: Direkte Lizenzakzeptanz
+    - name: Android SDK Lizenzen explizit akzeptieren
       run: |
         echo "Akzeptiere Android SDK Lizenzen explizit..."
-        # Verwende den sdkmanager direkt mit 'yes' Eingabe, um alle Lizenzen zu akzeptieren.
-        # Wichtig: ANDROID_HOME muss hier korrekt gesetzt sein (was die setup-android Action tut).
         yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        # Der || true am Ende stellt sicher, dass der Schritt nicht fehlschlägt, falls sdkmanager aus irgendeinem Grund einen Exit-Code ungleich 0 zurückgibt
-        # (z.B. wenn alle Lizenzen bereits akzeptiert wurden).
 
     - name: Umgebung und Pfade debuggen (nach SDK/NDK Setup und Lizenzakzeptanz)
       run: |
@@ -93,13 +89,11 @@ jobs:
         echo "ANDROID_HOME: $ANDROID_HOME"
         echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
         
-        # Zusätzliche Überprüfung der SDK-Struktur und sdkmanager
         echo "Inhalt von $ANDROID_HOME/tools/bin/ :"
         ls -la "$ANDROID_HOME/tools/bin/" || echo "$ANDROID_HOME/tools/bin/ nicht gefunden."
         echo "Inhalt von $ANDROID_HOME/cmdline-tools/latest/bin/ :"
         ls -la "$ANDROID_HOME/cmdline-tools/latest/bin/" || echo "$ANDROID_HOME/cmdline-tools/latest/bin/ nicht gefunden."
         
-        # Überprüfen, ob die Build-Tools wirklich da sind (nach Lizenzakzeptanz)
         echo "Inhalt von $ANDROID_HOME/build-tools/ :"
         ls -la "$ANDROID_HOME/build-tools/" || echo "$ANDROID_HOME/build-tools/ nicht gefunden."
         ls -la "$ANDROID_HOME/build-tools/30.0.3/aidl" || echo "Aidl 30.0.3 nicht gefunden."
@@ -139,11 +133,11 @@ jobs:
 
     - name: APK-Artefakt hochladen
       uses: actions/upload-artifact@v4
-      if: always() # Versuche immer, Artefakte hochzuladen, auch bei Fehlern
+      if: always()
       with:
         name: voice-cloning-app-debug
         path: |
           bin/*.apk
           .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
-        retention-days: 7 # Optional: Anzahl der Tage, für die das Artefakt gespeichert wird
+        retention-days: 7
         
