@@ -1,0 +1,27 @@
+[project]
+name = "MyPythonApp"
+version = "1.0.0"
+description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
+requires-python = ">=3.9"
+license = { file = "LICENSE" } # PEP 621 Lizenzdefinition
+
+[tool.briefcase]
+project_name = "MyPythonApp"
+bundle = "org.example" 
+author = "Ihr Name"
+author_email = "ihre.email@example.com"
+url = "https://example.com/mypythonapp"
+requires = [] 
+
+[tool.briefcase.app.mypythonapp] 
+sources = ["."] 
+main_module = "mypythonapp" 
+long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
+
+[tool.briefcase.app.mypythonapp.android]
+target_device = "generic"
+sdk_version = "34" 
+min_sdk_version = "21"
+build_tools_version = "34.0.0"
+supported_abis = ["arm64-v8a"]
+permissions = []
