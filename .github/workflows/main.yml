@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch:  # Ermöglicht manuelles Auslösen des Workflows
 
 jobs:
   build:
@@ -18,10 +18,11 @@ jobs:
     - name: Python einrichten
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9.13'
+        python-version: '3.9.13'  # Exakt die Version aus buildozer.spec
 
     - name: System-Abhängigkeiten installieren
       run: |
+        echo "Installiere System-Abhängigkeiten..."
         sudo apt-get update
         sudo apt-get install -y \
           git zip unzip python3-pip \
@@ -35,22 +36,57 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Apache Ant manuell vorbereiten
+    - name: Apache Ant manuell vorbereiten (robust)
       run: |
+        set -e
         mkdir -p /home/runner/.buildozer/android/platform
         cd /home/runner/.buildozer/android/platform
-        wget -q https://dlcdn.apache.org/ant/binaries/apache-ant-1.10.12-bin.tar.gz
-        tar -xf apache-ant-1.10.12-bin.tar.gz
-        rm apache-ant-1.10.12-bin.tar.gz
 
-    - name: Python-Abhängigkeiten installieren
+        ANT_VERSION=1.10.12
+        ANT_ARCHIVE="apache-ant-$ANT_VERSION-bin.tar.gz"
+        ANT_URLS=(
+          "https://dlcdn.apache.org/ant/binaries/$ANT_ARCHIVE"
+          "https://downloads.apache.org/ant/binaries/$ANT_ARCHIVE"
+          "https://archive.apache.org/dist/ant/binaries/$ANT_ARCHIVE"
+        )
+
+        DOWNLOAD_SUCCESS=false
+        for URL in "${ANT_URLS[@]}"; do
+          echo "Versuche Download von $URL ..."
+          if wget "$URL" -O "$ANT_ARCHIVE"; then
+            if tar -tzf "$ANT_ARCHIVE" &>/dev/null; then
+              echo "Download und Archivprüfung erfolgreich."
+              DOWNLOAD_SUCCESS=true
+              break
+            else
+              echo "Archiv beschädigt, versuche nächsten Mirror..."
+              rm -f "$ANT_ARCHIVE"
+            fi
+          else
+            echo "Download fehlgeschlagen von $URL"
+          fi
+        done
+
+        if [ "$DOWNLOAD_SUCCESS" = false ]; then
+          echo "Konnte Apache Ant nicht zuverlässig herunterladen."
+          exit 1
+        fi
+
+        tar -xf "$ANT_ARCHIVE"
+        rm "$ANT_ARCHIVE"
+        echo "Ant-Version:"
+        ./apache-ant-$ANT_VERSION/bin/ant -version
+
+    - name: Installiere Python-Abhängigkeiten
       run: |
+        echo "Installiere Python-Abhängigkeiten..."
         python -m pip install --upgrade pip
         pip install cython==0.29.24
         pip install buildozer==1.5.0 pyjnius
 
-    - name: buildozer.spec anpassen
+    - name: buildozer.spec für GitHub Actions anpassen (Pfade von Buildozer nutzen)
       run: |
+        echo "Passe buildozer.spec an..."
         sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         sed -i '/^android.sdk_path =/d' buildozer.spec
@@ -59,22 +95,49 @@ jobs:
         sed -i '/^android.accept_sdk_license =/d' buildozer.spec
         echo "android.buildtool = 36.0.0" >> buildozer.spec
         echo "android.accept_sdk_license = 1" >> buildozer.spec
-        grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec || echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
+        if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
+          echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
+        fi
+        echo "Aktualisierter Inhalt von buildozer.spec:"
+        cat buildozer.spec
 
-    - name: Lizenzen manuell akzeptieren
+    - name: Umgebung und Pfade debuggen (Buildozer-Pfade)
       run: |
-        mkdir -p /home/runner/.buildozer/android/platform/android-sdk/licenses
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > /home/runner/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-        echo "84831b9409646a918e30573bab4c9c91346d8abd" >> /home/runner/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-
-    - name: Build-Tools 36 manuell installieren (failsafe für aidl)
-      run: |
-        echo "Installiere Build-Tools 36.0.0 über sdkmanager..."
-        yes | /home/runner/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.0" || echo "Build-Tools eventuell bereits installiert"
-
-    - name: Umgebung prüfen
-      run: |
-        echo "Buildozer:"
+        echo "--- Aktueller Umgebungs-Debug ---"
+        echo "Current directory: $(pwd)"
+        ls -la
+        echo "Python version:"
+        python --version
+        echo "Buildozer version:"
         buildozer --version
-        echo "Java:"
-        java
+        echo "Java version:"
+        java -version
+        echo "PATH: $PATH"
+        echo "Buildozer Android SDK erwartet unter:"
+        echo "/home/runner/.buildozer/android/platform/android-sdk"
+        echo "/home/runner/.buildozer/android/platform/android-ndk-r25b"
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/build-tools/ || echo "Build-Tools nicht gefunden."
+        ls -la /home/runner/.buildozer/android/platform/android-sdk/platform-tools/ || echo "Platform-Tools nicht gefunden."
+        echo "--- Ende Debug ---"
+
+    - name: APK mit Buildozer erstellen (Debug-Modus)
+      run: |
+        echo "Starte APK-Build mit Buildozer..."
+        buildozer -v android debug
+
+    - name: Nach APK suchen
+      run: |
+        echo "--- Suche nach APK im bin-Verzeichnis ---"
+        ls -la bin/ || echo "bin-Verzeichnis nicht gefunden oder leer."
+        echo "--- Suche rekursiv nach APK-Dateien ---"
+        find . -name "*.apk" || echo "Keine APK-Dateien gefunden."
+
+    - name: APK-Artefakt hochladen
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: voice-cloning-app-debug
+        path: |
+          bin/*.apk
+          .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/*.apk
+        retention-days: 7
