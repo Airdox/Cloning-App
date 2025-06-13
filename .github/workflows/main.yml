@@ -84,21 +84,29 @@ jobs:
         # build-tools: 30.0.3 # <-- Diese Zeile wurde entfernt, da wir manuell installieren
         ndk: 25b
 
-    - name: Explizit Android Build-Tools 36.0.0 installieren und Lizenzen akzeptieren
+    - name: Android Build-Tools 36.0.0 und alle Lizenzen akzeptieren (verbessert)
       run: |
-        echo "Installiere Android Build-Tools 36.0.0 und akzeptiere Lizenzen..."
+        echo "Installiere Android Build-Tools 36.0.0 und akzeptiere alle Lizenzen..."
         # Stellen Sie sicher, dass ANDROID_HOME gesetzt ist. Die setup-android Action tut dies.
-        # Installiere build-tools;36.0.0 explizit und akzeptiere deren Lizenzen.
+
+        # Installiere build-tools;36.0.0 explizit.
+        # WICHTIG: Das 'yes |' leitet die Zustimmung an den sdkmanager weiter.
         yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.0" || true
-        # Optional: Akzeptiere alle Lizenzen erneut, um sicherzugehen, dass keine anderen fehlen
+        
+        # Installiere auch die platform-tools, die Buildozer benötigt.
+        yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager "platform-tools" || true
+
+        # Akzeptiere ALLE ausstehenden Lizenzen. Dies ist entscheidend,
+        # da Buildozer sonst bei jedem neuen Komponenten-Check hängen bleiben könnte.
         yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+        echo "Alle erforderlichen SDK-Komponenten installiert und Lizenzen akzeptiert."
 
 
     - name: Umgebung und Pfade debuggen (nach allen SDK/NDK Setups und Lizenzakzeptanz)
       run: |
         echo "--- Aktueller Umgebungs-Debug ---"
         echo "Current directory: $(pwd)"
-        echo "Files in current directory:"
         ls -la
         echo "Python version:"
         python --version
@@ -119,25 +127,28 @@ jobs:
         echo "Inhalt von $ANDROID_HOME/build-tools/ :"
         ls -la "$ANDROID_HOME/build-tools/" || echo "$ANDROID_HOME/build-tools/ nicht gefunden."
         ls -la "$ANDROID_HOME/build-tools/36.0.0/aidl" || echo "Aidl 36.0.0 nicht gefunden." # <-- Prüfe auf 36.0.0
+        echo "Inhalt von $ANDROID_HOME/platform-tools/ :"
+        ls -la "$ANDROID_HOME/platform-tools/" || echo "Platform-Tools nicht gefunden." # <-- Prüfe auf platform-tools
         echo "--- Ende Umgebungs-Debug ---"
 
     - name: buildozer.spec für GitHub Actions anpassen (Pfade von Action nutzen)
       run: |
         echo "Passe buildozer.spec an, um Pfade von setup-android Action zu nutzen..."
+        # Setze android.sdk auf 27 und android.ndk auf 25b, falls noch nicht geschehen
         sed -i 's/^# *android.sdk = 24/android.sdk = 27/' buildozer.spec # Passen Sie dies an Ihre Ziel-API an (hier 27)
         sed -i 's/^# *android.ndk = 25b/android.ndk = 25b/' buildozer.spec
         
+        # Entferne eventuell vorhandene sdk_path, ndk_path, buildtool Einträge
         sed -i '/^android.sdk_path =/d' buildozer.spec
-        sed -i '/^android.ndk_path =/d' buildozer.spec # <-- KORRIGIERT!
-
+        sed -i '/^android.ndk_path =/d' buildozer.spec
+        sed -i '/^android.buildtool =/d' buildozer.spec
+        
+        # Füge die Pfade und die explizite Build-Tool-Version hinzu
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
         echo "android.ndk_path = $ANDROID_NDK_ROOT" >> buildozer.spec
+        echo "android.buildtool = 36.0.0" >> buildozer.spec # Explizite Zuweisung der Build-Tool-Version
 
-        # Wenn Buildozer explizit 30.0.3 anfordert, ändern Sie dies auf 36.0.0 oder entfernen Sie die Zeile,
-        # damit es die neueste verfügbare Version verwendet.
-        # Beispiel: sed -i 's/^android.buildtool = 30.0.3/android.buildtool = 36.0.0/' buildozer.spec
-        # Wenn android.buildtool nicht explizit gesetzt ist, braucht es keine Änderung.
-
+        # Stelle sicher, dass android.add_aab_cmdline_tools gesetzt ist
         if ! grep -q "android.add_aab_cmdline_tools = 1" buildozer.spec; then
           echo "android.add_aab_cmdline_tools = 1" >> buildozer.spec
           echo "Hinzugefügt: android.add_aab_cmdline_tools = 1"
