@@ -7,11 +7,10 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Ermöglicht manuelles Auslösen des Workflows
+  workflow_dispatch:
 
 jobs:
   build:
-    # Der Job läuft auf der neuesten Ubuntu-Version
     runs-on: ubuntu-latest
 
     steps:
@@ -23,7 +22,7 @@ jobs:
     - name: Python einrichten
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9' # Eine stabile Python-Version für Buildozer
+        python-version: '3.9'
 
     # 3. System-Abhängigkeiten für Buildozer installieren
     - name: System-Abhängigkeiten installieren
@@ -36,22 +35,18 @@ jobs:
           cmake libffi-dev libssl-dev patch wget
 
     # 4. Java Development Kit (JDK) einrichten
-    # Notwendig für die Android-Build-Tools (Gradle, etc.)
     - name: Java JDK einrichten
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    # 5. Android SDK einrichten (optimierter Ansatz)
-    # Ersetzt die komplexe manuelle Installation und das Verlinken
+    # 5. Android SDK Command-Line Tools einrichten
     - name: Android SDK Command-Line Tools einrichten
       run: |
         echo "Lade Android Command-Line Tools herunter..."
-        # Eine bekannte, stabile Version der Tools wird verwendet
         wget -q "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -O commandlinetools.zip
         
-        # Erstelle das SDK-Verzeichnis und entpacke die Tools
         ANDROID_SDK_ROOT="${HOME}/android-sdk"
         mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools"
         unzip -q commandlinetools.zip -d "${ANDROID_SDK_ROOT}/cmdline-tools"
@@ -59,38 +54,35 @@ jobs:
         rm commandlinetools.zip
         
         echo "Setze ANDROID_HOME und aktualisiere den PATH..."
-        # Setze die Umgebungsvariable ANDROID_HOME für alle nachfolgenden Schritte
         echo "ANDROID_HOME=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
-        # Füge die wichtigen SDK-Verzeichnisse zum System-PATH hinzu
         echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
 
-    # 6. Android SDK-Komponenten installieren und Lizenzen akzeptieren
-    - name: SDK-Lizenzen akzeptieren und Build-Tools installieren
+    # 6. Android SDK-Komponenten installieren und Lizenzen akzeptieren (VERBESSERT)
+    - name: SDK-Lizenzen akzeptieren und spezifische Build-Tools installieren
       run: |
         echo "Akzeptiere automatisch alle SDK-Lizenzen..."
-        # Dieser Schritt ist entscheidend, damit der Build nicht blockiert wird
         yes | sdkmanager --licenses
         
-        echo "Installiere notwendige SDK-Komponenten..."
-        # Wir installieren Platform-Tools und eine aktuelle Version der Build-Tools.
-        # Buildozer wird die spezifische Plattform-Version (z.B. 'platforms;android-34') selbst herunterladen.
-        sdkmanager "platform-tools" "build-tools;34.0.0"
+        echo "Installiere proaktiv die von Buildozer benötigten SDK-Komponenten..."
+        # Wir installieren die genaue Build-Tools-Version (36.0.0 laut Fehlerlog),
+        # um den Lizenzfehler während des Buildozer-Laufs zu verhindern.
+        sdkmanager "platform-tools" "build-tools;36.0.0"
 
     # 7. Python-Abhängigkeiten für den Build installieren
     - name: Python-Abhängigkeiten installieren
       run: |
         python -m pip install --upgrade pip
-        # Cython wird oft für Kivy-Apps benötigt. pyjnius wird von Buildozer automatisch installiert.
         pip install "cython==0.29.34" buildozer==1.5.0
 
-    # 8. buildozer.spec für den CI-Build anpassen
+    # 8. buildozer.spec für den CI-Build anpassen (VERBESSERT)
     - name: buildozer.spec für CI anpassen
       run: |
-        # Wir stellen sicher, dass Buildozer die Lizenzen als akzeptiert ansieht und die korrekten Build-Tools verwendet.
-        # Pfade (sdk_path, ndk_path) müssen nicht gesetzt werden, da ANDROID_HOME ausreicht.
+        echo "Stelle sicher, dass buildozer.spec die korrekte Build-Tools-Version verwendet..."
+        # Wir stellen sicher, dass Buildozer die Lizenzen als akzeptiert ansieht und die Build-Tools-Version
+        # mit der oben installierten Version (36.0.0) übereinstimmt.
         sed -i 's/^#? *android.accept_sdk_license *=.*/android.accept_sdk_license = True/' buildozer.spec
-        sed -i 's/^#? *android.build_tools_version *=.*/android.build_tools_version = 34.0.0/' buildozer.spec
+        sed -i 's/^#? *android.build_tools_version *=.*/android.build_tools_version = 36.0.0/' buildozer.spec
         
         echo "Inhalt der angepassten buildozer.spec:"
         cat buildozer.spec
@@ -99,33 +91,25 @@ jobs:
     - name: Umgebung und Pfade vor dem Build prüfen
       run: |
         echo "--- Umgebungs-Debug ---"
-        echo "Java Version:"
         java -version
-        echo "Python Version:"
         python --version
-        echo "Buildozer Version:"
         buildozer --version
         echo "ANDROID_HOME: $ANDROID_HOME"
-        echo "PATH: $PATH"
         echo "Installierte SDK-Pakete:"
         sdkmanager --list_installed
         echo "--- Ende Debug ---"
 
-    # 10. APK mit Buildozer erstellen (mit ausführlicher Ausgabe)
+    # 10. APK mit Buildozer erstellen
     - name: APK mit Buildozer erstellen
       run: |
-        # -v gibt detaillierte Logs aus, was bei der Fehlersuche hilft
         buildozer -v android debug
 
     # 11. Erstelltes APK als Artefakt hochladen
-    # 'if: always()' sorgt dafür, dass dieser Schritt auch bei einem Fehlschlag des Builds ausgeführt wird,
-    # um Logs aus dem bin-Verzeichnis (falls vorhanden) zu sichern.
     - name: APK-Artefakt hochladen
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: App-Debug-APK
-        # Buildozer legt die fertige APK-Datei standardmäßig im 'bin'-Verzeichnis ab
         path: bin/*.apk
         retention-days: 7
-
+        
