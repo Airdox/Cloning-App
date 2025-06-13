@@ -50,57 +50,32 @@ jobs:
         echo "Aktuelles Arbeitsverzeichnis: $(pwd)"
         echo "Benutzer: $(whoami)"
 
-        # Definiere den Namen des Python-Paket-Ordners basierend auf dem App-Namen
-        APP_PACKAGE_DIR="mypythonapp" 
-        
-        # 1. Erstelle die pyproject.toml-Datei zuerst, um sicherzustellen, dass sie immer aktuell ist.
-        echo "Generiere pyproject.toml mit aktualisierten Inhalten..."
-        cat <<EOF > pyproject.toml
-        [project]
-        name = "MyPythonApp"
-        version = "1.0.0"
-        description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
-        requires-python = ">=3.9"
-        license = { file = "LICENSE" } # PEP 621 Lizenzdefinition
+        # Definiere das Stammverzeichnis für den App-Quellcode
+        APP_SOURCE_ROOT="src" 
+        # Definiere den Namen des Python-Paket-Ordners (innerhalb von APP_SOURCE_ROOT)
+        APP_PACKAGE_NAME="mypythonapp" 
+        APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
 
-        [tool.briefcase]
-        project_name = "MyPythonApp"
-        bundle = "org.example"
-        author = "Ihr Name"
-        author_email = "ihre.email@example.com"
-        url = "https://example.com/mypythonapp"
-        requires = [] 
-
-        [tool.briefcase.app.mypythonapp] 
-        sources = ["."] 
-        main_module = "mypythonapp" 
-        long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
+        # 1. Erstelle das Haupt-Quellverzeichnis und das Python-Paket-Verzeichnis
+        echo "Erstelle Quellverzeichnis: $APP_SOURCE_ROOT"
+        mkdir -p "$APP_SOURCE_ROOT" || { echo "FEHLER: Konnte Verzeichnis $APP_SOURCE_ROOT nicht erstellen."; exit 1; }
         
-        [tool.briefcase.app.mypythonapp.android]
-        target_device = "generic"
-        sdk_version = "34" 
-        min_sdk_version = "21"
-        build_tools_version = "34.0.0"
-        supported_abis = ["arm64-v8a"]
-        permissions = []
-        EOF
-        echo "pyproject.toml wurde generiert."
-
-        # 2. Erstelle das Python-Paket-Verzeichnis und seine Inhalte
-        echo "Erstelle Paketverzeichnis: $APP_PACKAGE_DIR"
-        mkdir -p "$APP_PACKAGE_DIR" || { echo "FEHLER: Konnte Verzeichnis $APP_PACKAGE_DIR nicht erstellen."; exit 1; }
+        echo "Erstelle Paketverzeichnis: $APP_PACKAGE_PATH"
+        mkdir -p "$APP_PACKAGE_PATH" || { echo "FEHLER: Konnte Verzeichnis $APP_PACKAGE_PATH nicht erstellen."; exit 1; }
         
-        echo "Erstelle __init__.py in $APP_PACKAGE_DIR/__init__.py"
-        if [ ! -f "$APP_PACKAGE_DIR/__init__.py" ]; then
-            touch "$APP_PACKAGE_DIR/__init__.py" || { echo "FEHLER: Konnte __init__.py nicht erstellen."; exit 1; }
+        # 2. Erstelle eine leere __init__.py, falls nicht vorhanden (macht es zu einem Python-Paket)
+        echo "Erstelle __init__.py in $APP_PACKAGE_PATH/__init__.py"
+        if [ ! -f "$APP_PACKAGE_PATH/__init__.py" ]; then
+            touch "$APP_PACKAGE_PATH/__init__.py" || { echo "FEHLER: Konnte __init__.py nicht erstellen."; exit 1; }
         fi
         
-        echo "Erstelle main.py in $APP_PACKAGE_DIR/main.py"
-        if [ ! -f "$APP_PACKAGE_DIR/main.py" ]; then
-            echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_DIR/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }
+        # 3. Erstelle main.py im Paketverzeichnis, falls notwendig
+        echo "Erstelle main.py in $APP_PACKAGE_PATH/main.py"
+        if [ ! -f "$APP_PACKAGE_PATH/main.py" ]; then
+            echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_PATH/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }
         fi
 
-        # 3. Optional: Erstelle eine leere LICENSE-Datei, wenn nicht vorhanden,
+        # 4. Optional: Erstelle eine leere LICENSE-Datei, wenn nicht vorhanden,
         # um die Lizenzwarnung zu vermeiden.
         echo "Erstelle/prüfe LICENSE-Datei..."
         if [ ! -f LICENSE ]; then
@@ -113,7 +88,7 @@ jobs:
             echo "in the Software without restriction, including without limitation the rights" >> LICENSE
             echo "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell" >> LICENSE
             echo "copies of the Software, and to permit persons to whom the Software is" >> LICENSE
-            echo "furnished to do so, subject to the following conditions:" >> LICENSE
+            echo "furnished to so, subject to the following conditions:" >> LICENSE
             echo "" >> LICENSE
             echo "The above copyright notice and this permission notice shall be included in all" >> LICENSE
             echo "copies or substantial portions of the Software." >> LICENSE
@@ -130,6 +105,41 @@ jobs:
             echo "LICENSE-Datei existiert bereits."
         fi
 
+        # 5. Erstelle die pyproject.toml-Datei mit aktualisierten 'sources'-Pfaden.
+        echo "Generiere pyproject.toml mit aktualisierten Inhalten..."
+        cat <<EOF > pyproject.toml
+        [project]
+        name = "MyPythonApp"
+        version = "1.0.0"
+        description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
+        requires-python = ">=3.9"
+        license = { file = "LICENSE" } # PEP 621 Lizenzdefinition
+
+        [tool.briefcase]
+        project_name = "MyPythonApp"
+        bundle = "org.example" 
+        author = "Ihr Name"
+        author_email = "ihre.email@example.com"
+        url = "https://example.com/mypythonapp"
+        requires = [] 
+
+        [tool.briefcase.app.mypythonapp] 
+        # WICHTIGE ÄNDERUNG: 'sources' zeigt jetzt auf das 'src'-Verzeichnis
+        sources = ["src"] 
+        # 'main_module' ist weiterhin der Paketname, da sich main.py jetzt in src/mypythonapp/ befindet
+        main_module = "mypythonapp" 
+        long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
+        
+        [tool.briefcase.app.mypythonapp.android]
+        target_device = "generic"
+        sdk_version = "34" 
+        min_sdk_version = "21"
+        build_tools_version = "34.0.0"
+        supported_abis = ["arm64-v8a"]
+        permissions = []
+        EOF
+        echo "pyproject.toml wurde generiert."
+
         echo "--- DEBUGGING-AUSGABE: Dateistruktur und pyproject.toml Inhalt (vor Briefcase-Aufruf) ---"
         echo "Inhalt von pyproject.toml:"
         cat pyproject.toml
@@ -139,16 +149,14 @@ jobs:
         ls -R
         echo "--- ENDE DEBUGGING-AUSGABE ---"
 
-        # --- Cache löschen und Build starten ---
+        # Cache löschen und Build starten
         echo "Lösche Briefcase-Cache und Build-Verzeichnisse für einen sauberen Start..."
         rm -rf ~/.briefcase || { echo "Warnung: Konnte ~/.briefcase nicht löschen."; }
         rm -rf build || { echo "Warnung: Konnte 'build/' Verzeichnis nicht löschen."; }
-        rm -rf android || { echo "Warnung: Konnte 'android/' Verzeichnis nicht löschen."; } # Löscht das Android-Projekt
+        rm -rf android || { echo "Warnung: Konnte 'android/' Verzeichnis nicht löschen."; } 
         echo "Briefcase-Cache und temporäre Build-Artefakte gelöscht."
         
         echo "Starte den Briefcase-Build für Android..."
-        # KORREKTUR: Entfernte "--project-state-file=pyproject.toml ."
-        # Briefcase sollte pyproject.toml im aktuellen Arbeitsverzeichnis automatisch finden.
         briefcase build android 
 
         echo "Suche nach der generierten APK-Datei..."
