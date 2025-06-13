@@ -61,19 +61,18 @@ jobs:
         version = "1.0.0"
         description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
         requires-python = ">=3.9"
-        # Lizenzdefinition nach PEP 621.
-        license = { file = "LICENSE" } # Verweist auf die LICENSE-Datei im Root
+        license = { file = "LICENSE" } # PEP 621 Lizenzdefinition
 
         [tool.briefcase]
         project_name = "MyPythonApp"
-        bundle = "org.example" # Ihre eindeutige Paket-ID (z.B. com.ihrefirma)
+        bundle = "org.example"
         author = "Ihr Name"
         author_email = "ihre.email@example.com"
         url = "https://example.com/mypythonapp"
-        requires = [] # Fügen Sie hier Ihre Python-Abhängigkeiten hinzu (z.B. ["kivy", "requests"])
+        requires = [] 
 
-        [tool.briefcase.app.mypythonapp] # Der Name hier muss dem 'project.name' entsprechen (kleingeschrieben und Bindestriche statt Leerzeichen)
-        sources = ["."] # sources zeigt auf das Verzeichnis, das das App-Paket enthält (hier: Root)
+        [tool.briefcase.app.mypythonapp] 
+        sources = ["."] 
         main_module = "mypythonapp" 
         long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
         
@@ -140,7 +139,7 @@ jobs:
         ls -R
         echo "--- ENDE DEBUGGING-AUSGABE ---"
 
-        # --- NEUE SCHRITTE: Cache löschen und expliziten Root übergeben ---
+        # --- Cache löschen und Build starten ---
         echo "Lösche Briefcase-Cache und Build-Verzeichnisse für einen sauberen Start..."
         rm -rf ~/.briefcase || { echo "Warnung: Konnte ~/.briefcase nicht löschen."; }
         rm -rf build || { echo "Warnung: Konnte 'build/' Verzeichnis nicht löschen."; }
@@ -148,13 +147,12 @@ jobs:
         echo "Briefcase-Cache und temporäre Build-Artefakte gelöscht."
         
         echo "Starte den Briefcase-Build für Android..."
-        # Verwende explizit --project-state-file, um sicherzustellen, dass pyproject.toml gelesen wird
-        # und führe den Build im aktuellen Verzeichnis aus.
-        briefcase build android --project-state-file=pyproject.toml .
-        # --- ENDE NEUE SCHRITTE ---
+        # KORREKTUR: Entfernte "--project-state-file=pyproject.toml ."
+        # Briefcase sollte pyproject.toml im aktuellen Arbeitsverzeichnis automatisch finden.
+        briefcase build android 
 
         echo "Suche nach der generierten APK-Datei..."
-        APK_PATH=$(find android -name "*.apk" -print -quit) # -quit beendet nach dem ersten Fund
+        APK_PATH=$(find android -name "*.apk" -print -quit) 
         
         if [ -z "$APK_PATH" ]; then
             echo "FEHLER: APK-Datei nicht gefunden. Überprüfen Sie die Briefcase-Ausgabe auf Fehler."
