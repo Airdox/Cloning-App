@@ -144,7 +144,6 @@ jobs:
         echo "--- ENDE DEBUGGING-AUSGABE ---"
 
         echo "Starte den Briefcase-Build für Android..."
-        # KORREKTUR: "--verbose" wurde entfernt, da es nicht unterstützt wird.
         # Briefcase build android wird bei Bedarf automatisch briefcase create und SDK-Installationen verwalten.
         briefcase build android 
 
