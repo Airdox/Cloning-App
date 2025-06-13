@@ -38,10 +38,22 @@ jobs:
         set -e
         echo "Aktualisiere pip und installiere eine spezifische Version von briefcase (0.3.17)..."
         python -m pip install --upgrade pip
-        # KORREKTUR: Installiere die spezifische Version 0.3.17 von Briefcase
+        # Installiere die spezifische Version 0.3.17 von Briefcase
         pip install briefcase==0.3.17 
         echo "Briefcase-Installation abgeschlossen."
         briefcase --version # Überprüfen, welche Version installiert wurde
+
+    # **NEUER SCHRITT**: Manuelles Klonen der Briefcase Android-Vorlage
+    # Dies umgeht Probleme, die Briefcase mit der Git-Klon-URL-Interpretation haben könnte.
+    - name: Klonen der Briefcase Android-Vorlage
+      run: |
+        set -e
+        TEMPLATE_DIR="templates/android-gradle-template"
+        echo "Klonen der Briefcase Android-Vorlage in $TEMPLATE_DIR..."
+        mkdir -p templates
+        # Klonen Sie die spezifische Version/den Tag mit der Branch-Option
+        git clone --depth 1 --branch v0.3.17 https://github.com/beeware/briefcase-android-gradle-template.git "$TEMPLATE_DIR" || { echo "FEHLER: Konnte Briefcase-Vorlage nicht klonen."; exit 1; }
+        echo "Vorlage erfolgreich geklont."
 
     # 5. Bereite App-Struktur vor und erstelle die Android APK
     - name: Bereite App-Struktur vor und erstelle die Android APK
@@ -55,15 +67,15 @@ jobs:
         # Entferne Buildozer-spezifische und andere potenziell störende Dateien
         if [ -f "buildozer.spec" ]; then
             echo "Entferne 'buildozer.spec'."
-            rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; exit 1; }
+            rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; }
         fi
         if [ -f "main_apk.py" ]; then
             echo "Entferne 'main_apk.py'."
-            rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; exit 1; }
+            rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; }
         fi
         if [ -f "projekt.toml" ]; then
             echo "Entferne 'projekt.toml'."
-            rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; exit 1; }
+            rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; }
         fi
 
 
@@ -156,8 +168,8 @@ jobs:
             "androidx.constraintlayout:constraintlayout:1.1.3",
             "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
         ]
-        # KORREKTUR: Erzwinge die Vorlagenversion, die mit Briefcase 0.3.17 kompatibel ist.
-        template = "https://github.com/beeware/briefcase-android-gradle-template.git#v0.3.17"
+        # KORREKTUR: Verwende den LOKALEN Pfad zur Vorlage
+        template = "./templates/android-gradle-template"
         permissions = []
         EOF
         echo "pyproject.toml wurde generiert."
