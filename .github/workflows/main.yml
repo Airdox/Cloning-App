@@ -34,7 +34,8 @@ jobs:
           autoconf libtool pkg-config zlib1g-dev \
           libncurses5-dev libncursesw5-dev libtinfo-dev \
           cmake libffi-dev libssl-dev patch wget \
-          openjdk-17-jdk # JDK über apt installieren, um sicherzustellen, dass es global verfügbar ist
+          openjdk-17-jdk \
+          automake # <--- HIER HINZUGEFÜGT: Stellt sicher, dass automake verfügbar ist
 
     # 4. Java Development Kit (JDK) einrichten (Optional, falls oben über apt installiert)
     # Dieser Schritt ist redundant, wenn openjdk-17-jdk über apt installiert wird.
@@ -72,16 +73,18 @@ jobs:
         yes | sdkmanager --licenses > /dev/null
 
         echo "Installiere proaktiv die von python-for-android benötigten SDK-Komponenten..."
-        # p4a benötigt möglicherweise spezifische Plattformversionen, z.B. "platforms;android-33"
-        # und eine spezifische Build-Tools-Version. Passen Sie diese an Ihre Bedürfnisse an.
         sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
     # 7. Python-Abhängigkeiten installieren (für python-for-android)
     - name: Python-Abhängigkeiten installieren
       run: |
         python -m pip install --upgrade pip
-        # Korrigiert: Eine verfügbare Version von python-for-android verwenden
         pip install "cython==0.29.34" "python-for-android==2024.1.21"
+
+        # Fügt das Benutzer-Bin-Verzeichnis von pip zum PATH hinzu, damit 'p4a' gefunden wird
+        echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+        which p4a || { echo "FEHLER: p4a-Befehl nach Installation und PATH-Update nicht gefunden. Überprüfen Sie die Pip-Installationsprotokolle."; exit 1; }
+        p4a --version # Zur Bestätigung, dass es ausgeführt werden kann
 
     # 8. APK mit python-for-android erstellen
     - name: APK mit python-for-android erstellen
@@ -112,12 +115,7 @@ jobs:
         ANDROID_SDK_VERSION="34" # Entspricht platforms;android-34
         ANDROID_BUILD_TOOLS_VERSION="34.0.0" # Entspricht build-tools;34.0.0
 
-        # p4a-Installation vor dem Ausführen überprüfen
-        echo "Überprüfe die python-for-android Installation..."
-        pip show python-for-android || { echo "python-for-android nicht gefunden. Überprüfen Sie den vorherigen Installationsschritt."; exit 1; }
-
         echo "Führe den python-for-android Build-Befehl aus..."
-        # Direkter Aufruf des p4a-Befehls, der im PATH sein sollte
         p4a apk \
             --debug \
             --name "$APP_NAME" \
@@ -129,7 +127,7 @@ jobs:
             --arch arm64-v8a \
             --android-api "$ANDROID_SDK_VERSION" \
             --build-tools "$ANDROID_BUILD_TOOLS_VERSION" \
-            --add-service your_service_name:your_service_file.py # Fügen Sie dies hinzu, wenn Sie Services haben
+            # --add-service your_service_name:your_service_file.py # Fügen Sie dies hinzu, wenn Sie Services haben
             # Weitere p4a-Optionen nach Bedarf hinzufügen, z.B. --permission, --orientation, etc.
 
     # 9. Erstelltes APK als Artefakt hochladen
