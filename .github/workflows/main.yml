@@ -23,25 +23,25 @@ jobs:
     - name: Python einrichten
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9' # Oder Ihre bevorzugte Python-Version. 3.9 ist hier passend.
+        python-version: '3.9'
 
     # 3. Java Development Kit (JDK) einrichten (für Android SDK, von Briefcase benötigt)
     - name: Java JDK einrichten (für Android SDK)
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17' # JDK 17 ist eine gute Wahl für moderne Android-Builds
+        java-version: '17'
 
-    # 4. Briefcase installieren (NEU: Direkt aus dem Git-Repository)
+    # 4. Briefcase installieren (NEU: Spezifische ältere Version)
     - name: Briefcase installieren
       run: |
         set -e # Beendet das Skript sofort, wenn ein Befehl fehlschlägt
-        echo "Aktualisiere pip und installiere die neueste Entwicklungsversion von briefcase direkt aus dem Git-Repository."
+        echo "Aktualisiere pip und installiere eine ältere, spezifische Version von briefcase (0.3.14)."
         python -m pip install --upgrade pip
-        # Installiert Briefcase direkt vom Hauptzweig des GitHub-Repositorys
-        pip install git+https://github.com/beeware/briefcase.git
+        # Installiert Briefcase Version 0.3.14, die bekanntermaßen stabil war und den TypeError vermeiden sollte.
+        pip install briefcase==0.3.14
         echo "Briefcase-Installation abgeschlossen."
-        briefcase --version # Überprüfen, welche Version installiert wurde (wird eine Dev-Version sein)
+        briefcase --version # Überprüfen, welche Version installiert wurde
 
     # 5. Bereite App-Struktur vor und erstelle die Android APK
     - name: Bereite App-Struktur vor und erstelle die Android APK
@@ -52,6 +52,7 @@ jobs:
         echo "Aktuelles Arbeitsverzeichnis: $(pwd)"
         echo "Benutzer: $(whoami)"
 
+        # Lösche alte Konfigurationsdateien, die Briefcase verwirren könnten
         if [ -f "buildozer.spec" ]; then rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; }; fi
         if [ -f "main_apk.py" ]; then rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; }; fi
         if [ -f "project.toml" ]; then
@@ -59,6 +60,7 @@ jobs:
             rm "project.toml" || { echo "FEHLER: Konnte 'project.toml' nicht entfernen."; }
         fi
 
+        # Verzeichnisse für die App-Struktur erstellen
         APP_SOURCE_ROOT="src" 
         APP_PACKAGE_NAME="mypythonapp" 
         APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
@@ -66,6 +68,7 @@ jobs:
         mkdir -p "$APP_SOURCE_ROOT" || { echo "FEHLER: Konnte Verzeichnis $APP_SOURCE_ROOT nicht erstellen."; exit 1; }
         mkdir -p "$APP_PACKAGE_PATH" || { echo "FEHLER: Konnte Verzeichnis $APP_PACKAGE_PATH nicht erstellen."; exit 1; }
         
+        # Leere __init__.py und einfache main.py erstellen
         if [ ! -f "$APP_PACKAGE_PATH/__init__.py" ]; then touch "$APP_PACKAGE_PATH/__init__.py" || { echo "FEHLER: Konnte __init__.py nicht erstellen."; exit 1; }; fi
         if [ ! -f "$APP_PACKAGE_PATH/main.py" ]; then echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_PATH/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }; fi
 
@@ -145,7 +148,7 @@ EOL
         ls -R
         echo "--- ENDE DEBUGGING-AUSGABE ---"
 
-        # Cache löschen und Build starten
+        # Briefcase-Cache und Build-Verzeichnisse für einen sauberen Start löschen
         echo "Lösche Briefcase-Cache und Build-Verzeichnisse für einen sauberen Start..."
         rm -rf ~/.briefcase || { echo "Warnung: Konnte ~/.briefcase nicht löschen."; }
         rm -rf build || { echo "Warnung: Konnte 'build/' Verzeichnis nicht löschen."; }
@@ -153,6 +156,7 @@ EOL
         echo "Briefcase-Cache und temporäre Build-Artefakte gelöscht."
         
         echo "Starte den Briefcase-Build für Android..."
+        # Briefcase 0.3.14 sollte den TypeError vermeiden.
         briefcase build android --update
         
         echo "Suche nach der generierten APK-Datei..."
