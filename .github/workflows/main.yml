@@ -92,25 +92,46 @@ jobs:
         # App-Dateien erstellen
         touch "$APP_PACKAGE_PATH/__init__.py"
         
-        cat > "$APP_PACKAGE_PATH/main.py" << 'EOF'
-        import sys
-        from datetime import datetime
+        cat > "$APP_PACKAGE_PATH/app.py" << 'EOF'
+import toga
+from toga.style import Pack
+from toga.style.pack import COLUMN, ROW
 
-        def main():
-            print('Hallo von meiner BeeWare Android App!')
-            print(f'Python Version: {sys.version}')
-            print(f'Build Zeit: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
-            
-            # Einfache interaktive Komponente für Android
-            try:
-                from android.runnable import run_on_ui_thread
-                print('Android-spezifische Funktionen verfügbar')
-            except ImportError:
-                print('Läuft im Desktop-Modus')
+class HelloWorld(toga.App):
+    def startup(self):
+        """Construct and show the Toga application."""
+        main_box = toga.Box(style=Pack(direction=COLUMN))
+        
+        name_label = toga.Label(
+            "Hallo von BeeWare Android App!",
+            style=Pack(padding=(0, 5))
+        )
+        name_input = toga.TextInput(style=Pack(flex=1))
+        
+        def say_hello(widget):
+            name_input.value = f"Hallo {name_input.value or 'Welt'}!"
+        
+        hello_button = toga.Button(
+            "Sag Hallo",
+            on_press=say_hello,
+            style=Pack(padding=5)
+        )
+        
+        main_box.add(name_label)
+        main_box.add(name_input)
+        main_box.add(hello_button)
+        
+        self.main_window = toga.MainWindow(title=self.formal_name)
+        self.main_window.content = main_box
+        self.main_window.show()
 
-        if __name__ == '__main__':
-            main()
-        EOF
+def main():
+    return HelloWorld()
+
+if __name__ == '__main__':
+    app = main()
+    app.main_loop()
+EOF
 
         # LICENSE erstellen
         cat > LICENSE << 'EOF'
@@ -179,8 +200,8 @@ jobs:
         Diese App demonstriert die grundlegende Struktur einer Python-Android-App.
         """
         sources = ["src/mypythonapp"]
-        main_module = "main"
-        requires = []
+        main_module = "mypythonapp.app"
+        requires = ["toga"]
 
         [tool.briefcase.app.mypythonapp.android]
         gradle_build_gradle_dependencies = [
@@ -226,8 +247,32 @@ jobs:
         rm -rf ~/.briefcase build android dist
 
         echo "Starte Briefcase Build für Android..."
-        echo "Validiere pyproject.toml..."
-        briefcase dev -v
+        echo "Validiere pyproject.toml Syntax..."
+        python -c "
+import sys
+try:
+    import toml
+except ImportError:
+    print('toml nicht verfügbar, installiere...')
+    import subprocess
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'toml'])
+    import toml
+
+try:
+    with open('pyproject.toml', 'r') as f:
+        config = toml.load(f)
+    print('✓ pyproject.toml ist gültig')
+    print('Verfügbare Apps:', list(config.get('tool', {}).get('briefcase', {}).get('app', {}).keys()))
+    
+    # Prüfe main_module Konfiguration
+    app_config = config.get('tool', {}).get('briefcase', {}).get('app', {}).get('mypythonapp', {})
+    main_module = app_config.get('main_module', 'NICHT GEFUNDEN')
+    print('Main Module:', main_module)
+    
+except Exception as e:
+    print('✗ Fehler in pyproject.toml:', e)
+    exit(1)
+"
         echo "Erstelle Android-Projekt..."
         briefcase create android -v
         echo "Baue Android-APK..."
