@@ -1,50 +1,46 @@
-# Name des Workflows
 name: Android APK mit BeeWare Briefcase bauen
 
-# Trigger für den Workflow
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch: # Ermöglicht das manuelle Starten des Workflows über die GitHub Actions UI
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: '3.9'
   JAVA_VERSION: '17'
   BRIEFCASE_VERSION: '0.3.14'
+  TOGA_VERSION: '0.4.4'  # Passe gegebenenfalls an
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Verhindert hängende Builds
+    timeout-minutes: 45
 
     steps:
-    # 1. Repository auschecken
     - name: Repository auschecken
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Vollständige Historie für bessere Debugging-Informationen
+        fetch-depth: 0
 
-    # 2. Python-Umgebung einrichten
     - name: Python einrichten
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        # Kein Cache hier, da pyproject.toml erst später erstellt wird
 
-    # 3. Java Development Kit (JDK) einrichten
     - name: Java JDK einrichten (für Android SDK)
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: ${{ env.JAVA_VERSION }}
 
-    # 4. Android SDK Setup (explizit für bessere Kontrolle)
     - name: Android SDK einrichten
       uses: android-actions/setup-android@v3
 
-    # 5. Briefcase installieren
+    - name: Android SDK Lizenzen akzeptieren
+      run: yes | sdkmanager --licenses
+
     - name: Pip Cache einrichten
       uses: actions/cache@v4
       with:
@@ -55,72 +51,40 @@ jobs:
 
     - name: Briefcase installieren
       run: |
-        set -e
-        echo "Aktualisiere pip und installiere Briefcase Version ${{ env.BRIEFCASE_VERSION }}"
         python -m pip install --upgrade pip setuptools wheel
         pip install briefcase==${{ env.BRIEFCASE_VERSION }}
-        echo "Briefcase-Installation abgeschlossen."
-        briefcase --version
 
-    # 6. Bereite App-Struktur vor und erstelle die Android APK
-    - name: Bereite App-Struktur vor und erstelle die Android APK
+    - name: App-Struktur vorbereiten und Android APK bauen
       run: |
         set -e
-        
-        echo "--- START: Vorbereitung der App-Struktur und pyproject.toml ---"
-        echo "Aktuelles Arbeitsverzeichnis: $(pwd)"
-        echo "Benutzer: $(whoami)"
-        echo "Python Version: $(python --version)"
-        echo "Java Version: $(java -version)"
 
-        # Cleanup alte Konfigurationsdateien
-        for file in buildozer.spec main_apk.py project.toml; do
-            if [ -f "$file" ]; then
-                echo "Entferne alte Konfigurationsdatei: $file"
-                rm "$file"
-            fi
-        done
+        # App-Struktur anlegen
+        mkdir -p src/mypythonapp
+        touch src/mypythonapp/__init__.py
 
-        # App-Struktur erstellen
-        APP_SOURCE_ROOT="src" 
-        APP_PACKAGE_NAME="mypythonapp" 
-        APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
-
-        echo "Erstelle App-Verzeichnisstruktur..."
-        mkdir -p "$APP_PACKAGE_PATH"
-        
-        # App-Dateien erstellen
-        touch "$APP_PACKAGE_PATH/__init__.py"
-        
-        cat > "$APP_PACKAGE_PATH/app.py" << 'EOF'
+        cat > src/mypythonapp/app.py <<EOF
 import toga
 from toga.style import Pack
-from toga.style.pack import COLUMN, ROW
+from toga.style.pack import COLUMN
 
 class HelloWorld(toga.App):
     def startup(self):
-        """Construct and show the Toga application."""
         main_box = toga.Box(style=Pack(direction=COLUMN))
-        
         name_label = toga.Label(
             "Hallo von BeeWare Android App!",
             style=Pack(padding=(0, 5))
         )
         name_input = toga.TextInput(style=Pack(flex=1))
-        
         def say_hello(widget):
             name_input.value = f"Hallo {name_input.value or 'Welt'}!"
-        
         hello_button = toga.Button(
             "Sag Hallo",
             on_press=say_hello,
             style=Pack(padding=5)
         )
-        
         main_box.add(name_label)
         main_box.add(name_input)
         main_box.add(hello_button)
-        
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = main_box
         self.main_window.show()
@@ -133,169 +97,128 @@ if __name__ == '__main__':
     app.main_loop()
 EOF
 
-        # LICENSE erstellen
-        cat > LICENSE << 'EOF'
-        MIT License
+        cat > LICENSE <<EOF
+MIT License
 
-        Copyright (c) $(date +%Y) Ihr Name
+Copyright (c) $(date +%Y) Ihr Name
 
-        Permission is hereby granted, free of charge, to any person obtaining a copy
-        of this software and associated documentation files (the "Software"), to deal
-        in the Software without restriction, including without limitation the rights
-        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-        copies of the Software, and to permit persons to whom the Software is
-        furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-        The above copyright notice and this permission notice shall be included in all
-        copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-        SOFTWARE.
-        EOF
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+EOF
 
-        # pyproject.toml erstellen
-        cat > pyproject.toml << 'EOF'
-        [build-system]
-        requires = ["briefcase"]
+        cat > pyproject.toml <<EOF
+[build-system]
+requires = ["briefcase"]
 
-        [project]
-        name = "MyPythonApp"
-        version = "1.0.0"
-        description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
-        readme = "README.md"
-        requires-python = ">=3.9"
-        license = { file = "LICENSE" }
-        authors = [
-            { name = "Ihr Name", email = "ihre.email@example.com" }
-        ]
-        keywords = ["mobile", "android", "python", "beeware"]
-        classifiers = [
-            "Development Status :: 4 - Beta",
-            "Intended Audience :: Developers",
-            "License :: OSI Approved :: MIT License",
-            "Programming Language :: Python :: 3.9",
-            "Topic :: Software Development :: Libraries :: Application Frameworks",
-        ]
+[project]
+name = "MyPythonApp"
+version = "1.0.0"
+description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Ihr Name", email = "ihre.email@example.com" }
+]
+keywords = ["mobile", "android", "python", "beeware"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 
-        [tool.briefcase]
-        project_name = "MyPythonApp"
-        bundle = "org.example"
-        version = "1.0.0"
-        author = "Ihr Name"
-        author_email = "ihre.email@example.com"
-        url = "https://example.com/mypythonapp"
-        license = "MIT"
-        requires = []
+[tool.briefcase]
+project_name = "MyPythonApp"
+bundle = "org.example"
+version = "1.0.0"
+author = "Ihr Name"
+author_email = "ihre.email@example.com"
+url = "https://example.com/mypythonapp"
+license = "MIT"
+requires = []
 
-        [tool.briefcase.app.mypythonapp]
-        formal_name = "My Python App"
-        description = "Eine einfache Python-App für Android"
-        long_description = """
-        Eine Beispiel-Anwendung, die mit BeeWare Briefcase für Android erstellt wurde.
-        Diese App demonstriert die grundlegende Struktur einer Python-Android-App.
-        """
-        sources = ["src/mypythonapp"]
-        main_module = "mypythonapp.app"
-        requires = ["toga"]
+[tool.briefcase.app.mypythonapp]
+formal_name = "My Python App"
+description = "Eine einfache Python-App für Android"
+long_description = """
+Eine Beispiel-Anwendung, die mit BeeWare Briefcase für Android erstellt wurde.
+Diese App demonstriert die grundlegende Struktur einer Python-Android-App.
+"""
+sources = ["src/mypythonapp"]
+main_module = "mypythonapp.app"
+requires = ["toga==${TOGA_VERSION}"]
 
-        [tool.briefcase.app.mypythonapp.android]
-        gradle_build_gradle_dependencies = [
-            "androidx.appcompat:appcompat:1.6.1",
-            "androidx.constraintlayout:constraintlayout:2.1.4",
-            "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
-        ]
-        permissions = [
-            "android.permission.INTERNET",
-        ]
-        
-        [tool.briefcase.app.mypythonapp.android.build_gradle_template_context]
-        compile_sdk_version = 34
-        target_sdk_version = 34
-        min_sdk_version = 21
-        EOF
+[tool.briefcase.app.mypythonapp.android]
+gradle_build_gradle_dependencies = [
+    "androidx.appcompat:appcompat:1.6.1",
+    "androidx.constraintlayout:constraintlayout:2.1.4",
+    "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
+]
+permissions = [
+    "android.permission.INTERNET",
+]
 
-        # README erstellen
-        cat > README.md << 'EOF'
-        # MyPythonApp
+[tool.briefcase.app.mypythonapp.android.build_gradle_template_context]
+compile_sdk_version = 34
+target_sdk_version = 34
+min_sdk_version = 21
+EOF
 
-        Eine einfache Python-Anwendung, erstellt mit BeeWare Briefcase für Android.
+        cat > README.md <<EOF
+# MyPythonApp
 
-        ## Build-Status
+Eine einfache Python-Anwendung, erstellt mit BeeWare Briefcase für Android.
 
-        Diese App wird automatisch mit GitHub Actions gebaut.
+## Build-Status
 
-        ## Installation
+Diese App wird automatisch mit GitHub Actions gebaut.
 
-        Die APK-Datei kann aus den GitHub Actions Artifacts heruntergeladen werden.
-        EOF
+## Installation
 
-        echo "--- DEBUGGING-AUSGABE: Dateistruktur und Konfiguration ---"
-        echo "Inhalt von pyproject.toml:"
+Die APK-Datei kann aus den GitHub Actions Artifacts heruntergeladen werden.
+EOF
+
+        echo "pyproject.toml:"
         cat pyproject.toml
-        echo ""
-        echo "Dateistruktur:"
-        find . -type f -name "*.py" -o -name "*.toml" -o -name "LICENSE" -o -name "README.md" | sort
-        echo "--- ENDE DEBUGGING-AUSGABE ---"
 
-        # Cleanup für sauberen Build
-        echo "Bereite sauberen Build vor..."
+        # Clean build-Verzeichnisse
         rm -rf ~/.briefcase build android dist
 
-        echo "Starte Briefcase Build für Android..."
-        echo "Validiere pyproject.toml Syntax..."
-        python -c "
-import sys
-try:
-    import toml
-except ImportError:
-    print('toml nicht verfügbar, installiere...')
-    import subprocess
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'toml'])
-    import toml
+        # Syntax-Check für pyproject.toml
+        python -c "import toml; toml.load(open('pyproject.toml'))"
 
-try:
-    with open('pyproject.toml', 'r') as f:
-        config = toml.load(f)
-    print('✓ pyproject.toml ist gültig')
-    print('Verfügbare Apps:', list(config.get('tool', {}).get('briefcase', {}).get('app', {}).keys()))
-    
-    # Prüfe main_module Konfiguration
-    app_config = config.get('tool', {}).get('briefcase', {}).get('app', {}).get('mypythonapp', {})
-    main_module = app_config.get('main_module', 'NICHT GEFUNDEN')
-    print('Main Module:', main_module)
-    
-except Exception as e:
-    print('✗ Fehler in pyproject.toml:', e)
-    exit(1)
-"
-        echo "Erstelle Android-Projekt..."
+        # Briefcase Schritte
         briefcase create android -v
-        echo "Baue Android-APK..."
         briefcase build android -v
 
-        echo "Suche nach der generierten APK-Datei..."
-        APK_PATH=$(find . -name "*.apk" -type f | head -1)
-        
-        if [ -z "$APK_PATH" ]; then
-            echo "FEHLER: APK-Datei nicht gefunden."
-            echo "Verfügbare Dateien im Build-Verzeichnis:"
-            find . -name "*.apk" -o -name "*.aab" -o -name "*debug*" | head -20
-            exit 1
+        # APK suchen und in einen festen Ordner kopieren
+        mkdir -p artifact
+        APK_PATH=\$(find . -name "*.apk" -type f | head -1)
+        if [ -z "\$APK_PATH" ]; then
+          echo "FEHLER: APK-Datei nicht gefunden."
+          find . -name "*.apk" -o -name "*.aab" -o -name "*debug*" | head -20
+          exit 1
         fi
-        
-        echo "APK erfolgreich erstellt: $APK_PATH"
-        echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
-        
-        # APK-Informationen anzeigen
-        ls -la "$APK_PATH"
-        echo "--- ENDE: Build erfolgreich ---"
+        cp "\$APK_PATH" artifact/
+        echo "APK erfolgreich in artifact/ kopiert: \${APK_PATH}"
 
-    # 7. Build-Logs als Artefakt hochladen (für Debugging)
     - name: Build-Logs hochladen
       uses: actions/upload-artifact@v4
       if: failure()
@@ -306,22 +229,21 @@ except Exception as e:
           android/
         retention-days: 3
 
-    # 8. APK als Artefakt hochladen
     - name: APK-Artefakt hochladen
       uses: actions/upload-artifact@v4
       if: success()
       with:
         name: MyPythonApp-Android-APK
-        path: ${{ env.APK_PATH }}
+        path: artifact/
         retention-days: 30
 
-    # 9. Release erstellen (optional, nur bei Tags)
     - name: Release erstellen
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
       with:
-        files: ${{ env.APK_PATH }}
+        files: artifact/*.apk
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
