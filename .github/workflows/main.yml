@@ -32,46 +32,6 @@ jobs:
         distribution: 'temurin'
         java-version: '17' # JDK 17 ist eine gute Wahl für moderne Android-Builds
 
-    # **NEUER SCHRITT**: Android Command-Line Tools manuell installieren
-    # Dies stellt sicher, dass die Tools verfügbar sind, bevor Briefcase sie benutzt,
-    # und kann Timeout-Probleme vermeiden.
-    - name: Android Command-Line Tools installieren
-      run: |
-        # Setze ANDROID_HOME auf den Standardpfad, den setup-java verwendet.
-        # Dies ist notwendig, damit sdkmanager gefunden wird.
-        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-        export ANDROID_HOME="/usr/local/lib/android/sdk"
-        
-        # Erstelle das 'latest' Verzeichnis, falls es fehlt (manchmal für sdkmanager nötig)
-        mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
-        
-        # Lade die neueste Version der Command-Line Tools herunter und entpacke sie
-        # Wir müssen wissen, wo sdkmanager ist. 'setup-java' sollte es einrichten.
-        # Alternativ können wir es mit wget herunterladen und manuell entpacken.
-        # Da Briefcase v0.3.23 die "Command-Line Tools 19.0" möchte, versuchen wir diese Version.
-        echo "Herunterladen und Entpacken der Android Command-Line Tools..."
-        # Verwende den Android SDK Manager, um die spezifische Version zu installieren.
-        # Akzeptiere die Lizenzen automatisch mit --channel=0.
-        # Der Pfad zu sdkmanager hängt davon ab, wie setup-java ihn installiert.
-        # Normalerweise ist es unter $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
-        # oder direkt unter $ANDROID_HOME/cmdline-tools/bin/sdkmanager (ältere Versionen)
-        
-        # Prüfen, ob sdkmanager direkt in $ANDROID_HOME/cmdline-tools/bin existiert
-        if [ -f "$ANDROID_HOME/cmdline-tools/bin/sdkmanager" ]; then
-            SDK_MANAGER_PATH="$ANDROID_HOME/cmdline-tools/bin/sdkmanager"
-        elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            SDK_MANAGER_PATH="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-        else
-            echo "FEHLER: sdkmanager nicht gefunden. Prüfen Sie die Installation von setup-java."
-            exit 1
-        fi
-        
-        # Installiere die Command-Line Tools und akzeptiere Lizenzen
-        "$SDK_MANAGER_PATH" "cmdline-tools;latest" --channel=0 --sdk_root="$ANDROID_HOME" --install "cmdline-tools;latest"
-        yes | "$SDK_MANAGER_PATH" --licenses # Akzeptiere alle Lizenzen
-        echo "Android Command-Line Tools installiert und Lizenzen akzeptiert."
-
-
     # 4. Briefcase installieren
     - name: Briefcase installieren
       run: |
@@ -189,8 +149,6 @@ EOL
         echo "Briefcase-Cache und temporäre Build-Artefakte gelöscht."
         
         echo "Starte den Briefcase-Build für Android..."
-        # Der Parameter '--clean' wurde entfernt, da er in der verwendeten Briefcase-Version
-        # nicht erkannt wurde. Die manuellen 'rm -rf' Befehle sorgen bereits für einen sauberen Start.
         briefcase build android --update
         
         echo "Suche nach der generierten APK-Datei..."
