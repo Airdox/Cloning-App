@@ -11,7 +11,7 @@ env:
   PYTHON_VERSION: '3.9'
   JAVA_VERSION: '17'
   BRIEFCASE_VERSION: '0.3.14'
-  TOGA_VERSION: '0.4.4'  # Passe gegebenenfalls an
+  TOGA_VERSION: '0.4.4'
 
 jobs:
   build:
@@ -62,7 +62,7 @@ jobs:
         mkdir -p src/mypythonapp
         touch src/mypythonapp/__init__.py
 
-        cat > src/mypythonapp/app.py <<EOF
+        cat > src/mypythonapp/app.py <<'EOF'
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     app.main_loop()
 EOF
 
-        cat > LICENSE <<EOF
+        cat > LICENSE <<'EOF'
 MIT License
 
 Copyright (c) $(date +%Y) Ihr Name
@@ -163,7 +163,7 @@ Diese App demonstriert die grundlegende Struktur einer Python-Android-App.
 """
 sources = ["src/mypythonapp"]
 main_module = "mypythonapp.app"
-requires = ["toga==${TOGA_VERSION}"]
+requires = ["toga==${{ env.TOGA_VERSION }}"]
 
 [tool.briefcase.app.mypythonapp.android]
 gradle_build_gradle_dependencies = [
@@ -181,7 +181,7 @@ target_sdk_version = 34
 min_sdk_version = 21
 EOF
 
-        cat > README.md <<EOF
+        cat > README.md <<'EOF'
 # MyPythonApp
 
 Eine einfache Python-Anwendung, erstellt mit BeeWare Briefcase für Android.
@@ -195,14 +195,26 @@ Diese App wird automatisch mit GitHub Actions gebaut.
 Die APK-Datei kann aus den GitHub Actions Artifacts heruntergeladen werden.
 EOF
 
-        echo "pyproject.toml:"
+        echo "pyproject.toml Inhalt:"
         cat pyproject.toml
 
         # Clean build-Verzeichnisse
         rm -rf ~/.briefcase build android dist
 
         # Syntax-Check für pyproject.toml
-        python -c "import toml; toml.load(open('pyproject.toml'))"
+        python -c "
+import sys
+try:
+    import toml
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'toml'])
+    import toml
+
+with open('pyproject.toml', 'r') as f:
+    config = toml.load(f)
+print('✓ pyproject.toml ist gültig')
+"
 
         # Briefcase Schritte
         briefcase create android -v
@@ -210,14 +222,14 @@ EOF
 
         # APK suchen und in einen festen Ordner kopieren
         mkdir -p artifact
-        APK_PATH=\$(find . -name "*.apk" -type f | head -1)
-        if [ -z "\$APK_PATH" ]; then
+        APK_PATH=$(find . -name "*.apk" -type f | head -1)
+        if [ -z "$APK_PATH" ]; then
           echo "FEHLER: APK-Datei nicht gefunden."
           find . -name "*.apk" -o -name "*.aab" -o -name "*debug*" | head -20
           exit 1
         fi
-        cp "\$APK_PATH" artifact/
-        echo "APK erfolgreich in artifact/ kopiert: \${APK_PATH}"
+        cp "$APK_PATH" artifact/
+        echo "APK erfolgreich in artifact/ kopiert: ${APK_PATH}"
 
     - name: Build-Logs hochladen
       uses: actions/upload-artifact@v4
