@@ -32,14 +32,52 @@ jobs:
         distribution: 'temurin'
         java-version: '17' # JDK 17 ist eine gute Wahl für moderne Android-Builds
 
+    # **NEUER SCHRITT**: Android Command-Line Tools manuell installieren
+    # Dies stellt sicher, dass die Tools verfügbar sind, bevor Briefcase sie benutzt,
+    # und kann Timeout-Probleme vermeiden.
+    - name: Android Command-Line Tools installieren
+      run: |
+        # Setze ANDROID_HOME auf den Standardpfad, den setup-java verwendet.
+        # Dies ist notwendig, damit sdkmanager gefunden wird.
+        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+        export ANDROID_HOME="/usr/local/lib/android/sdk"
+        
+        # Erstelle das 'latest' Verzeichnis, falls es fehlt (manchmal für sdkmanager nötig)
+        mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+        
+        # Lade die neueste Version der Command-Line Tools herunter und entpacke sie
+        # Wir müssen wissen, wo sdkmanager ist. 'setup-java' sollte es einrichten.
+        # Alternativ können wir es mit wget herunterladen und manuell entpacken.
+        # Da Briefcase v0.3.23 die "Command-Line Tools 19.0" möchte, versuchen wir diese Version.
+        echo "Herunterladen und Entpacken der Android Command-Line Tools..."
+        # Verwende den Android SDK Manager, um die spezifische Version zu installieren.
+        # Akzeptiere die Lizenzen automatisch mit --channel=0.
+        # Der Pfad zu sdkmanager hängt davon ab, wie setup-java ihn installiert.
+        # Normalerweise ist es unter $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+        # oder direkt unter $ANDROID_HOME/cmdline-tools/bin/sdkmanager (ältere Versionen)
+        
+        # Prüfen, ob sdkmanager direkt in $ANDROID_HOME/cmdline-tools/bin existiert
+        if [ -f "$ANDROID_HOME/cmdline-tools/bin/sdkmanager" ]; then
+            SDK_MANAGER_PATH="$ANDROID_HOME/cmdline-tools/bin/sdkmanager"
+        elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDK_MANAGER_PATH="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        else
+            echo "FEHLER: sdkmanager nicht gefunden. Prüfen Sie die Installation von setup-java."
+            exit 1
+        fi
+        
+        # Installiere die Command-Line Tools und akzeptiere Lizenzen
+        "$SDK_MANAGER_PATH" "cmdline-tools;latest" --channel=0 --sdk_root="$ANDROID_HOME" --install "cmdline-tools;latest"
+        yes | "$SDK_MANAGER_PATH" --licenses # Akzeptiere alle Lizenzen
+        echo "Android Command-Line Tools installiert und Lizenzen akzeptiert."
+
+
     # 4. Briefcase installieren
     - name: Briefcase installieren
       run: |
         set -e # Beendet das Skript sofort, wenn ein Befehl fehlschlägt
         echo "Aktualisiere pip und installiere die neueste stabile Version von briefcase..."
         python -m pip install --upgrade pip
-        # Installiere die neueste stabile Version von Briefcase.
-        # Dies behebt den 'TypeError', der in älteren Versionen auftrat.
         pip install briefcase
         echo "Briefcase-Installation abgeschlossen."
         briefcase --version # Überprüfen, welche Version installiert wurde
@@ -53,76 +91,50 @@ jobs:
         echo "Aktuelles Arbeitsverzeichnis: $(pwd)"
         echo "Benutzer: $(whoami)"
 
-        # Entferne Buildozer-spezifische und andere potenziell störende Dateien
-        if [ -f "buildozer.spec" ]; then
-            echo "Entferne 'buildozer.spec'."
-            rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; }
-        fi
-        if [ -f "main_apk.py" ]; then
-            echo "Entferne 'main_apk.py'."
-            rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; }
-        fi
-        if [ -f "projekt.toml" ]; then
-            echo "Entferne 'projekt.toml'."
-            rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; }
-        fi
+        if [ -f "buildozer.spec" ]; then rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; }; fi
+        if [ -f "main_apk.py" ]; then rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; }; fi
+        if [ -f "projekt.toml" ]; then rm "projekt.toml" || { echo "FEHLER: Konnte 'projekt.toml' nicht entfernen."; }; fi
 
-        # Definiere das Stammverzeichnis für den App-Quellcode
         APP_SOURCE_ROOT="src" 
-        # Definiere den Namen des Python-Paket-Ordners (innerhalb von APP_SOURCE_ROOT)
         APP_PACKAGE_NAME="mypythonapp" 
         APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
 
-        # 1. Erstelle das Haupt-Quellverzeichnis und das Python-Paket-Verzeichnis
-        echo "Erstelle Quellverzeichnis: $APP_SOURCE_ROOT"
         mkdir -p "$APP_SOURCE_ROOT" || { echo "FEHLER: Konnte Verzeichnis $APP_SOURCE_ROOT nicht erstellen."; exit 1; }
-        
-        echo "Erstelle Paketverzeichnis: $APP_PACKAGE_PATH"
         mkdir -p "$APP_PACKAGE_PATH" || { echo "FEHLER: Konnte Verzeichnis $APP_PACKAGE_PATH nicht erstellen."; exit 1; }
         
-        # 2. Erstelle eine leere __init__.py, falls nicht vorhanden (macht es zu einem Python-Paket)
-        echo "Erstelle __init__.py in $APP_PACKAGE_PATH/__init__.py"
-        if [ ! -f "$APP_PACKAGE_PATH/__init__.py" ]; then
-            touch "$APP_PACKAGE_PATH/__init__.py" || { echo "FEHLER: Konnte __init__.py nicht erstellen."; exit 1; }
-        fi
-        
-        # 3. Erstelle main.py im Paketverzeichnis, falls notwendig
-        echo "Erstelle main.py in $APP_PACKAGE_PATH/main.py"
-        if [ ! -f "$APP_PACKAGE_PATH/main.py" ]; then
-            echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_PATH/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }
-        fi
+        if [ ! -f "$APP_PACKAGE_PATH/__init__.py" ]; then touch "$APP_PACKAGE_PATH/__init__.py" || { echo "FEHLER: Konnte __init__.py nicht erstellen."; exit 1; }; fi
+        if [ ! -f "$APP_PACKAGE_PATH/main.py" ]; then echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_PATH/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }; fi
 
-        # 4. Optional: Erstelle eine leere LICENSE-Datei, wenn nicht vorhanden,
-        # um die Lizenzwarnung zu vermeiden.
         echo "Erstelle/prüfe LICENSE-Datei..."
         if [ ! -f LICENSE ]; then
-            echo "Copyright (c) $(date +%Y) Ihr Name" > LICENSE
-            echo "" >> LICENSE
-            echo "MIT License" >> LICENSE
-            echo "" >> LICENSE
-            echo "Permission is hereby granted, free of charge, to any person obtaining a copy" >> LICENSE
-            echo "of this software and associated documentation files (the \"Software\"), to deal" >> LICENSE
-            echo "in the Software without restriction, including without limitation the rights" >> LICENSE
-            echo "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell" >> LICENSE
-            echo "copies of the Software, and to permit persons to whom the Software is" >> LICENSE
-            echo "furnished to do so, subject to the following conditions:" >> LICENSE
-            echo "" >> LICENSE
-            echo "The above copyright notice and this permission notice shall be included in all" >> LICENSE
-            echo "copies or substantial portions of the Software." >> LICENSE
-            echo "" >> LICENSE
-            echo "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR" >> LICENSE
-            echo "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY," >> LICENSE
-            echo "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE" >> LICENSE
-            echo "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER" >> LICENSE
-            echo "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM," >> LICENSE
-            echo "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE" >> LICENSE
-            echo "SOFTWARE." >> LICENSE
+            cat <<EOL > LICENSE
+Copyright (c) $(date +%Y) Ihr Name
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+EOL
             echo "LICENSE-Datei wurde erstellt."
         else
             echo "LICENSE-Datei existiert bereits."
         fi
 
-        # 5. Erstelle die pyproject.toml-Datei mit aktualisierten 'sources'-Pfaden.
         echo "Generiere pyproject.toml mit aktualisierten Inhalten..."
         cat <<EOF > pyproject.toml
         [project]
