@@ -44,12 +44,6 @@ jobs:
         echo "Briefcase-Installation abgeschlossen."
         briefcase --version # Überprüfen, welche Version installiert wurde
 
-    # **ANPASSUNG HINWEIS**: Der manuelle Schritt zum Klonen der Briefcase Android-Vorlage
-    # ist mit neueren Briefcase-Versionen (wie der, die wir jetzt installieren)
-    # in der Regel NICHT mehr notwendig. Briefcase verwaltet seine Vorlagen selbst.
-    # Ich habe diesen Schritt hier entfernt. Falls Sie spezifische Anpassungen an der Vorlage
-    # vornehmen müssen, müssten Sie einen angepassten Workflow dafür einrichten.
-
     # 5. Bereite App-Struktur vor und erstelle die Android APK
     - name: Bereite App-Struktur vor und erstelle die Android APK
       run: |
@@ -162,9 +156,6 @@ jobs:
             "androidx.constraintlayout:constraintlayout:1.1.3",
             "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
         ]
-        # **WICHTIG**: Die Zeile 'template = "./templates/android-gradle-template"'
-        # wurde entfernt, da Briefcase jetzt die Vorlagen selbst verwaltet
-        # und wir den manuellen Klon-Schritt oben entfernt haben.
         permissions = []
         EOF
         echo "pyproject.toml wurde generiert."
@@ -186,9 +177,9 @@ jobs:
         echo "Briefcase-Cache und temporäre Build-Artefakte gelöscht."
         
         echo "Starte den Briefcase-Build für Android..."
-        # Verwende '--update' um sicherzustellen, dass Briefcase die neueste Vorlage verwendet
-        # und '--clean' für einen sauberen Build-Start.
-        briefcase build android --update --clean
+        # Der Parameter '--clean' wurde entfernt, da er in der verwendeten Briefcase-Version
+        # nicht erkannt wurde. Die manuellen 'rm -rf' Befehle sorgen bereits für einen sauberen Start.
+        briefcase build android --update
         
         echo "Suche nach der generierten APK-Datei..."
         APK_PATH=$(find android -name "*.apk" -print -quit) # Findet die erste gefundene APK
