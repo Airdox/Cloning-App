@@ -191,6 +191,11 @@ jobs:
         permissions = [
             "android.permission.INTERNET",
         ]
+        build_gradle_template_context = {
+            "compile_sdk_version": 34,
+            "target_sdk_version": 34,
+            "min_sdk_version": 21,
+        }
         EOF
 
         # README erstellen
@@ -221,8 +226,12 @@ jobs:
         rm -rf ~/.briefcase build android dist
 
         echo "Starte Briefcase Build für Android..."
-        briefcase create android
-        briefcase build android
+        echo "Validiere pyproject.toml..."
+        briefcase dev -v
+        echo "Erstelle Android-Projekt..."
+        briefcase create android -v
+        echo "Baue Android-APK..."
+        briefcase build android -v
 
         echo "Suche nach der generierten APK-Datei..."
         APK_PATH=$(find . -name "*.apk" -type f | head -1)
