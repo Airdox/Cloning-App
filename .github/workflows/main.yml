@@ -32,13 +32,12 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    # 4. Briefcase installieren (NEU: Spezifische ältere Version)
+    # 4. Briefcase installieren (Version 0.3.14)
     - name: Briefcase installieren
       run: |
         set -e # Beendet das Skript sofort, wenn ein Befehl fehlschlägt
-        echo "Aktualisiere pip und installiere eine ältere, spezifische Version von briefcase (0.3.14)."
+        echo "Aktualisiere pip und installiere Briefcase Version 0.3.14."
         python -m pip install --upgrade pip
-        # Installiert Briefcase Version 0.3.14, die bekanntermaßen stabil war und den TypeError vermeiden sollte.
         pip install briefcase==0.3.14
         echo "Briefcase-Installation abgeschlossen."
         briefcase --version # Überprüfen, welche Version installiert wurde
@@ -52,7 +51,6 @@ jobs:
         echo "Aktuelles Arbeitsverzeichnis: $(pwd)"
         echo "Benutzer: $(whoami)"
 
-        # Lösche alte Konfigurationsdateien, die Briefcase verwirren könnten
         if [ -f "buildozer.spec" ]; then rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; }; fi
         if [ -f "main_apk.py" ]; then rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; }; fi
         if [ -f "project.toml" ]; then
@@ -60,7 +58,6 @@ jobs:
             rm "project.toml" || { echo "FEHLER: Konnte 'project.toml' nicht entfernen."; }
         fi
 
-        # Verzeichnisse für die App-Struktur erstellen
         APP_SOURCE_ROOT="src" 
         APP_PACKAGE_NAME="mypythonapp" 
         APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
@@ -68,7 +65,6 @@ jobs:
         mkdir -p "$APP_SOURCE_ROOT" || { echo "FEHLER: Konnte Verzeichnis $APP_SOURCE_ROOT nicht erstellen."; exit 1; }
         mkdir -p "$APP_PACKAGE_PATH" || { echo "FEHLER: Konnte Verzeichnis $APP_PACKAGE_PATH nicht erstellen."; exit 1; }
         
-        # Leere __init__.py und einfache main.py erstellen
         if [ ! -f "$APP_PACKAGE_PATH/__init__.py" ]; then touch "$APP_PACKAGE_PATH/__init__.py" || { echo "FEHLER: Konnte __init__.py nicht erstellen."; exit 1; }; fi
         if [ ! -f "$APP_PACKAGE_PATH/main.py" ]; then echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_PATH/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }; fi
 
@@ -103,7 +99,7 @@ EOL
         fi
 
         echo "Generiere pyproject.toml mit aktualisierten Inhalten..."
-        # HIER IST DIE KORREKTUR: KEINE ZUSÄTZLICHEN LEERZEICHEN VOR DEN ZEILEN IM <<EOF-BLOCK!
+        # Hier ist die Korrektur der Einrückung für pyproject.toml
         cat <<EOF > pyproject.toml
 [project]
 name = "MyPythonApp"
@@ -157,8 +153,8 @@ EOF
         echo "Briefcase-Cache und temporäre Build-Artefakte gelöscht."
         
         echo "Starte den Briefcase-Build für Android..."
-        # Briefcase 0.3.14 sollte den TypeError vermeiden.
-        briefcase build android --update
+        # Explizites Angeben des Templates, das zu Briefcase 0.3.14 passt.
+        briefcase build android --update --template https://github.com/beeware/briefcase-android-gradle-template.git#v0.3.14
         
         echo "Suche nach der generierten APK-Datei..."
         APK_PATH=$(find android -name "*.apk" -print -quit) # Findet die erste gefundene APK
