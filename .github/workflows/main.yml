@@ -72,8 +72,8 @@ jobs:
         if [ ! -f "$APP_PACKAGE_PATH/main.py" ]; then echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_PATH/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }; fi
 
         echo "Erstelle/prüfe LICENSE-Datei..."
-        if [ ! -f LICENSE ]; then
-            cat <<EOL > LICENSE
+        # Hier ist die Korrektur der Einrückung für LICENSE. Der EOL-Marker muss auch ganz links stehen.
+        cat <<'EOL' > LICENSE
 Copyright (c) $(date +%Y) Ihr Name
 
 MIT License
@@ -102,41 +102,41 @@ EOL
         fi
 
         echo "Generiere pyproject.toml mit aktualisierten Inhalten..."
-        # WICHTIG: Die folgenden Zeilen (ab [project] bis EOF) dürfen keine führenden Leerzeichen haben.
-        cat <<EOF > pyproject.toml
-[project]
-name = "MyPythonApp"
-version = "1.0.0"
-description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
-requires-python = ">=3.9"
-license = { file = "LICENSE" } # PEP 621 Lizenzdefinition
-
-[tool.briefcase]
-project_name = "MyPythonApp"
-bundle = "org.example" 
-author = "Ihr Name"
-author_email = "ihre.email@example.com"
-url = "https://example.com/mypythonapp"
-requires = [] 
-
-[tool.briefcase.app.mypythonapp] 
-sources = ["src/mypythonapp"] 
-main_module = "main" 
-long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
-
-[tool.briefcase.app.mypythonapp.android]
-target_device = "generic"
-sdk_version = "34" 
-min_sdk_version = "21"
-build_tools_version = "34.0.0"
-supported_abis = ["arm64-v8a"]
-build_gradle_dependencies = [
-    "androidx.appcompat:appcompat:1.0.2",
-    "androidx.constraintlayout:constraintlayout:1.1.3",
-    "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
-]
-permissions = []
-EOF
+        # NEUER ANSATZ: Zeile für Zeile mit echo schreiben, um Einrückungsprobleme zu vermeiden
+        {
+          echo '[project]'
+          echo 'name = "MyPythonApp"'
+          echo 'version = "1.0.0"'
+          echo 'description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."'
+          echo 'requires-python = ">=3.9"'
+          echo 'license = { file = "LICENSE" }'
+          echo ''
+          echo '[tool.briefcase]'
+          echo 'project_name = "MyPythonApp"'
+          echo 'bundle = "org.example"'
+          echo 'author = "Ihr Name"'
+          echo 'author_email = "ihre.email@example.com"'
+          echo 'url = "https://example.com/mypythonapp"'
+          echo 'requires = []'
+          echo ''
+          echo '[tool.briefcase.app.mypythonapp]'
+          echo 'sources = ["src/mypythonapp"]'
+          echo 'main_module = "main"'
+          echo 'long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."'
+          echo ''
+          echo '[tool.briefcase.app.mypythonapp.android]'
+          echo 'target_device = "generic"'
+          echo 'sdk_version = "34"'
+          echo 'min_sdk_version = "21"'
+          echo 'build_tools_version = "34.0.0"'
+          echo 'supported_abis = ["arm64-v8a"]'
+          echo 'build_gradle_dependencies = ['
+          echo '    "androidx.appcompat:appcompat:1.0.2",'
+          echo '    "androidx.constraintlayout:constraintlayout:1.1.3",'
+          echo '    "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",'
+          echo ']'
+          echo 'permissions = []'
+        } > pyproject.toml
         echo "pyproject.toml wurde generiert."
 
         echo "--- DEBUGGING-AUSGABE: Dateistruktur und pyproject.toml Inhalt (vor Briefcase-Aufruf) ---"
