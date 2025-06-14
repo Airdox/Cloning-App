@@ -32,7 +32,7 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    # 4. Briefcase installieren (Version 0.3.14)
+    # 4. Briefcase installieren (Version 0.3.14 mit spezifischem Template)
     - name: Briefcase installieren
       run: |
         set -e # Beendet das Skript sofort, wenn ein Befehl fehlschlägt
@@ -51,6 +51,7 @@ jobs:
         echo "Aktuelles Arbeitsverzeichnis: $(pwd)"
         echo "Benutzer: $(whoami)"
 
+        # Lösche alte Konfigurationsdateien, die Briefcase verwirren könnten
         if [ -f "buildozer.spec" ]; then rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; }; fi
         if [ -f "main_apk.py" ]; then rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; }; fi
         if [ -f "project.toml" ]; then
@@ -58,6 +59,7 @@ jobs:
             rm "project.toml" || { echo "FEHLER: Konnte 'project.toml' nicht entfernen."; }
         fi
 
+        # Verzeichnisse für die App-Struktur erstellen
         APP_SOURCE_ROOT="src" 
         APP_PACKAGE_NAME="mypythonapp" 
         APP_PACKAGE_PATH="$APP_SOURCE_ROOT/$APP_PACKAGE_NAME"
@@ -65,6 +67,7 @@ jobs:
         mkdir -p "$APP_SOURCE_ROOT" || { echo "FEHLER: Konnte Verzeichnis $APP_SOURCE_ROOT nicht erstellen."; exit 1; }
         mkdir -p "$APP_PACKAGE_PATH" || { echo "FEHLER: Konnte Verzeichnis $APP_PACKAGE_PATH nicht erstellen."; exit 1; }
         
+        # Leere __init__.py und einfache main.py erstellen
         if [ ! -f "$APP_PACKAGE_PATH/__init__.py" ]; then touch "$APP_PACKAGE_PATH/__init__.py" || { echo "FEHLER: Konnte __init__.py nicht erstellen."; exit 1; }; fi
         if [ ! -f "$APP_PACKAGE_PATH/main.py" ]; then echo "print('Hallo von meiner BeeWare Android App!')" > "$APP_PACKAGE_PATH/main.py" || { echo "FEHLER: Konnte main.py nicht erstellen."; exit 1; }; fi
 
@@ -99,7 +102,7 @@ EOL
         fi
 
         echo "Generiere pyproject.toml mit aktualisierten Inhalten..."
-        # Hier ist die Korrektur der Einrückung für pyproject.toml
+        # WICHTIG: Die folgenden Zeilen (ab [project] bis EOF) dürfen keine führenden Leerzeichen haben.
         cat <<EOF > pyproject.toml
 [project]
 name = "MyPythonApp"
