@@ -32,17 +32,16 @@ jobs:
         distribution: 'temurin'
         java-version: '17' # JDK 17 ist eine gute Wahl für moderne Android-Builds
 
-    # 4. Briefcase installieren
+    # 4. Briefcase installieren (NEU: Direkt aus dem Git-Repository)
     - name: Briefcase installieren
       run: |
         set -e # Beendet das Skript sofort, wenn ein Befehl fehlschlägt
-        echo "Aktualisiere pip und installiere eine spezifische, stabile Version von briefcase (z.B. 0.3.17)."
+        echo "Aktualisiere pip und installiere die neueste Entwicklungsversion von briefcase direkt aus dem Git-Repository."
         python -m pip install --upgrade pip
-        # Installiere eine spezifische Version von Briefcase, die bekanntermaßen stabil ist und den TypeError behoben hat.
-        # Wenn 0.3.23 den Fehler noch hat, probieren wir 0.3.17
-        pip install briefcase==0.3.17
+        # Installiert Briefcase direkt vom Hauptzweig des GitHub-Repositorys
+        pip install git+https://github.com/beeware/briefcase.git
         echo "Briefcase-Installation abgeschlossen."
-        briefcase --version # Überprüfen, welche Version installiert wurde
+        briefcase --version # Überprüfen, welche Version installiert wurde (wird eine Dev-Version sein)
 
     # 5. Bereite App-Struktur vor und erstelle die Android APK
     - name: Bereite App-Struktur vor und erstelle die Android APK
@@ -55,7 +54,6 @@ jobs:
 
         if [ -f "buildozer.spec" ]; then rm "buildozer.spec" || { echo "FEHLER: Konnte 'buildozer.spec' nicht entfernen."; }; fi
         if [ -f "main_apk.py" ]; then rm "main_apk.py" || { echo "FEHLER: Konnte 'main_apk.py' nicht entfernen."; }; fi
-        # Entferne auch project.toml, falls es eine alte Konfigurationsdatei ist, die Briefcase verwirren könnte
         if [ -f "project.toml" ]; then
             echo "Entferne 'project.toml'."
             rm "project.toml" || { echo "FEHLER: Konnte 'project.toml' nicht entfernen."; }
@@ -155,8 +153,6 @@ EOL
         echo "Briefcase-Cache und temporäre Build-Artefakte gelöscht."
         
         echo "Starte den Briefcase-Build für Android..."
-        # Wir sind beim TypeError zurück; Briefcase 0.3.23 scheint ein Problem zu haben.
-        # Versuche eine bekannte stabile Version wie 0.3.17.
         briefcase build android --update
         
         echo "Suche nach der generierten APK-Datei..."
