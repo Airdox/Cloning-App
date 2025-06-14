@@ -164,6 +164,7 @@ jobs:
         [tool.briefcase]
         project_name = "MyPythonApp"
         bundle = "org.example"
+        version = "1.0.0"
         author = "Ihr Name"
         author_email = "ihre.email@example.com"
         url = "https://example.com/mypythonapp"
