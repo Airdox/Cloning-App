@@ -191,11 +191,11 @@ jobs:
         permissions = [
             "android.permission.INTERNET",
         ]
-        build_gradle_template_context = {
-            "compile_sdk_version": 34,
-            "target_sdk_version": 34,
-            "min_sdk_version": 21,
-        }
+        
+        [tool.briefcase.app.mypythonapp.android.build_gradle_template_context]
+        compile_sdk_version = 34
+        target_sdk_version = 34
+        min_sdk_version = 21
         EOF
 
         # README erstellen
