@@ -1,5 +1,5 @@
 # Name des Workflows, der in der GitHub Actions-Oberfläche angezeigt wird
-name: Build Flutter Android APK mit Strukturprüfung
+name: Flutter APK Build (Neu & Diagnostisch)
 
 # Legt fest, wann dieser Workflow ausgeführt wird
 on:
@@ -14,11 +14,6 @@ jobs:
     # Der Typ des Runners, auf dem der Job ausgeführt wird
     runs-on: ubuntu-latest
 
-    # Umgebungsvariablen, die über alle Schritte hinweg verfügbar sind
-    env:
-      # Standard-Projektverzeichnis. Wird dynamisch angepasst.
-      FLUTTER_PROJECT_DIR: './cloning_app'
-
     # Die einzelnen Schritte des Jobs
     steps:
       # Schritt 1: Das Repository auschecken
@@ -26,42 +21,23 @@ jobs:
       - name: Repository auschecken
         uses: actions/checkout@v4
 
-      # Schritt 2: Debugging - Zeige die aktuelle Verzeichnisstruktur
-      # Dies hilft uns zu verstehen, wie das Repository ausgecheckt wurde.
-      - name: Aktuelle Dateien und Ordner im Repository auflisten (Debugging)
+      # --- DIAGNOSE-SCHRITT: EXTREM WICHTIG ZUR FEHLERSUCHE ---
+      # Schritt 2: Zeige die genaue Verzeichnisstruktur nach dem Checkout an.
+      # Diese Ausgabe hilft zu sehen, wo sich dein Flutter-Projekt befindet.
+      - name: Aktuelle Dateien und Ordner im Repository auflisten (DIAGNOSE)
         run: |
-          echo "Listing files in the repository root:"
-          ls -R .
-        working-directory: . # Diesen Schritt aus dem Repository-Root ausführen
+          echo "--- Dateien und Ordner im Repository-Root ---"
+          ls -F
+          echo ""
+          echo "--- Rekursive Auflistung der Inhalte (bis Tiefe 3) ---"
+          find . -maxdepth 3 -print -exec ls -ld {} \;
+          echo ""
+          echo "--- Suche nach pubspec.yaml ---"
+          find . -name "pubspec.yaml"
+        working-directory: . # Diesen Schritt IMMER aus dem Repository-Root ausführen
 
-      # Schritt 3: Verzeichnisstruktur prüfen und Projektpfad festlegen
-      # Dieser Schritt ermittelt das korrekte Arbeitsverzeichnis für das Flutter-Projekt.
-      - name: Flutter-Projektverzeichnis ermitteln
-        id: set_project_dir # Gibt diesem Schritt eine ID, um seine Ausgaben zu referenzieren
-        run: |
-          PROJECT_DIR=""
-
-          # Prüfe, ob pubspec.yaml direkt im Root liegt
-          if [ -f "pubspec.yaml" ]; then
-            echo "pubspec.yaml wurde im Repository-Root gefunden. Das Projekt befindet sich hier."
-            PROJECT_DIR="./"
-          # Prüfe, ob pubspec.yaml im './cloning_app'-Ordner liegt
-          elif [ -f "cloning_app/pubspec.yaml" ]; then
-            echo "pubspec.yaml wurde im './cloning_app' Ordner gefunden. Das Projekt befindet sich dort."
-            PROJECT_DIR="./cloning_app"
-          else
-            echo "::error::Weder im Repository-Root noch im './cloning_app' Ordner konnte eine pubspec.yaml gefunden werden."
-            echo "::error::Bitte stelle sicher, dass deine pubspec.yaml entweder direkt im Repository-Root liegt ODER in einem Ordner namens 'cloning_app'."
-            exit 1 # Workflow fehlschlagen lassen, wenn die Struktur nicht erkannt wird
-          fi
-
-          # Setze die Umgebungsvariable für die nachfolgenden Schritte
-          echo "FLUTTER_PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-          echo "Ermitteltes Flutter-Projektverzeichnis: $PROJECT_DIR"
-
-      # Schritt 4: Flutter SDK einrichten
-      # Verwendet die offizielle Flutter Action, um das SDK zu installieren
-      # und einzurichten, inklusive Caching für schnellere Builds.
+      # Schritt 3: Flutter SDK einrichten
+      # Verwendet die offizielle Flutter Action, um das SDK zu installieren.
       - name: Flutter SDK einrichten
         uses: subosito/flutter-action@v2
         with:
@@ -69,25 +45,27 @@ jobs:
           channel: 'stable'      # Verwendet den stabilen Flutter-Kanal
           cache: true            # Aktiviert das Caching für das Flutter SDK und Pub-Abhängigkeiten
 
-      # Schritt 5: Flutter-Abhängigkeiten installieren
-      # Verwendet die dynamisch gesetzte Umgebungsvariable FLUTTER_PROJECT_DIR.
+      # Schritt 4: Flutter-Abhängigkeiten installieren
+      # Dieser Schritt versucht, 'flutter pub get' im erwarteten 'cloning_app' Ordner auszuführen.
+      # Wenn der Ordner nicht existiert, wird dieser Schritt fehlschlagen.
       - name: Flutter-Abhängigkeiten installieren
+        # Annahme: Das Flutter-Projekt liegt im Ordner 'cloning_app' im Repository-Root.
+        # Sollte der Ordner anders heißen oder direkt im Root liegen, muss 'working-directory' angepasst werden.
         run: flutter pub get
-        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
+        working-directory: ./cloning_app # Dies ist der erwartete Pfad für dein Flutter-Projekt
 
-      # Schritt 6: Die Android APK erstellen
-      # Erstellt die Release-APK, ebenfalls im ermittelten Projektverzeichnis.
+      # Schritt 5: Die Android APK erstellen
+      # Erstellt die Release-APK, ebenfalls im erwarteten Projektverzeichnis.
       - name: Android APK erstellen
         run: flutter build apk --release
-        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
+        working-directory: ./cloning_app # Gleicher Pfad wie für pub get
 
-      # Schritt 7: Die erstellte APK als Artefakt hochladen
+      # Schritt 6: Die erstellte APK als Artefakt hochladen
       # Der Pfad muss weiterhin relativ zum Stammverzeichnis des Repositories angegeben werden.
-      # Wir nutzen hier die ermittelte FLUTTER_PROJECT_DIR, um den korrekten Pfad zu bauen.
       - name: APK-Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          # Dieser Pfad muss absolut vom Root des ausgecheckten Repositories sein.
-          path: ${{ env.FLUTTER_PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          # Pfad zur APK relativ zum Repository-Root
+          path: cloning_app/build/app/outputs/flutter-apk/app-release.apk
           
