@@ -77,6 +77,10 @@ jobs:
         echo "Building version: ${VERSION}"
 
     - name: App-Struktur und Konfiguration erstellen
+      env:
+        APP_VERSION: ${{ steps.build-info.outputs.version }}
+        GITHUB_REPO: ${{ github.repository }}
+        RUN_NUMBER: ${{ github.run_number }}
       run: |
         set -euo pipefail
 
@@ -85,7 +89,7 @@ jobs:
         touch src/mypythonapp/__init__.py
 
         # Hauptanwendung erstellen
-        cat > src/mypythonapp/app.py <<'EOF'
+        cat > src/mypythonapp/app.py << 'EOF'
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
@@ -176,10 +180,10 @@ if __name__ == '__main__':
 EOF
 
         # Lizenz erstellen
-        cat > LICENSE <<EOF
+        cat > LICENSE << 'EOF'
 MIT License
 
-Copyright (c) $(date +%Y) BeeWare Demo App
+Copyright (c) 2025 BeeWare Demo App
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -201,15 +205,14 @@ SOFTWARE.
 EOF
 
         # Projekt-Konfiguration erstellen
-        VERSION="${{ steps.build-info.outputs.version }}"
-        cat > pyproject.toml <<EOF
+        cat > pyproject.toml << EOF
 [build-system]
 requires = ["briefcase"]
 build-backend = "briefcase"
 
 [project]
 name = "MyPythonApp"
-version = "${VERSION}"
+version = "${APP_VERSION}"
 description = "Eine moderne Python-App für Android, gebaut mit BeeWare Briefcase"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -233,10 +236,10 @@ classifiers = [
 [tool.briefcase]
 project_name = "MyPythonApp"
 bundle = "com.example.mypythonapp"
-version = "${VERSION}"
+version = "${APP_VERSION}"
 author = "BeeWare Demo"
 author_email = "demo@example.com"
-url = "https://github.com/${GITHUB_REPOSITORY}"
+url = "https://github.com/${GITHUB_REPO}"
 license = "MIT"
 
 [tool.briefcase.app.mypythonapp]
@@ -255,11 +258,9 @@ main_module = "mypythonapp.app"
 requires = [
     "toga==${{ env.TOGA_VERSION }}",
 ]
-icon = "resources/icon"
-splash = "resources/splash"
 
 [tool.briefcase.app.mypythonapp.android]
-version_code = ${{ github.run_number }}
+version_code = ${RUN_NUMBER}
 compile_sdk_version = ${{ env.ANDROID_API_LEVEL }}
 target_sdk_version = ${{ env.ANDROID_API_LEVEL }}
 min_sdk_version = 24
@@ -274,19 +275,18 @@ permissions = [
     "android.permission.INTERNET",
 ]
 
-# Gradle-Template Kontext für erweiterte Konfiguration
 [tool.briefcase.app.mypythonapp.android.gradle_template_context]
 app_name = "My Python App"
 package_name = "com.example.mypythonapp"
 EOF
 
         # README erstellen
-        cat > README.md <<EOF
+        cat > README.md << EOF
 # 🐍 MyPythonApp
 
 Eine moderne Python-Anwendung für Android, erstellt mit BeeWare Briefcase.
 
-![Build Status](https://github.com/${GITHUB_REPOSITORY}/workflows/Android%20APK%20mit%20BeeWare%20Briefcase%20bauen/badge.svg)
+![Build Status](https://github.com/${GITHUB_REPO}/workflows/Android%20APK%20mit%20BeeWare%20Briefcase%20bauen/badge.svg)
 
 ## 📱 Features
 
@@ -297,15 +297,15 @@ Eine moderne Python-Anwendung für Android, erstellt mit BeeWare Briefcase.
 
 ## 🚀 Installation
 
-Die neueste APK kann aus den [GitHub Releases](https://github.com/${GITHUB_REPOSITORY}/releases) heruntergeladen werden.
+Die neueste APK kann aus den [GitHub Releases](https://github.com/${GITHUB_REPO}/releases) heruntergeladen werden.
 
 ## 🛠️ Entwicklung
 
 Diese App verwendet:
-- **Python ${PYTHON_VERSION}**
-- **BeeWare Briefcase ${BRIEFCASE_VERSION}**
-- **Toga ${TOGA_VERSION}**
-- **Android API Level ${ANDROID_API_LEVEL}**
+- **Python ${{ env.PYTHON_VERSION }}**
+- **BeeWare Briefcase ${{ env.BRIEFCASE_VERSION }}**
+- **Toga ${{ env.TOGA_VERSION }}**
+- **Android API Level ${{ env.ANDROID_API_LEVEL }}**
 
 ## 📦 Build
 
@@ -314,7 +314,7 @@ Das Projekt wird automatisch mit GitHub Actions gebaut bei jedem Push und Pull R
 ### Lokaler Build
 
 \`\`\`bash
-pip install briefcase==${BRIEFCASE_VERSION}
+pip install briefcase==${{ env.BRIEFCASE_VERSION }}
 briefcase create android
 briefcase build android
 briefcase package android
