@@ -201,6 +201,7 @@ SOFTWARE.
 EOF
 
         # Projekt-Konfiguration erstellen
+        VERSION="${{ steps.build-info.outputs.version }}"
         cat > pyproject.toml <<EOF
 [build-system]
 requires = ["briefcase"]
@@ -208,7 +209,7 @@ build-backend = "briefcase"
 
 [project]
 name = "MyPythonApp"
-version = "${{ steps.build-info.outputs.version }}"
+version = "${VERSION}"
 description = "Eine moderne Python-App für Android, gebaut mit BeeWare Briefcase"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -232,7 +233,7 @@ classifiers = [
 [tool.briefcase]
 project_name = "MyPythonApp"
 bundle = "com.example.mypythonapp"
-version = "${{ steps.build-info.outputs.version }}"
+version = "${VERSION}"
 author = "BeeWare Demo"
 author_email = "demo@example.com"
 url = "https://github.com/${GITHUB_REPOSITORY}"
