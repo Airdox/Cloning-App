@@ -3,11 +3,9 @@ name: Build Flutter Android APK
 
 # Legt fest, wann dieser Workflow ausgeführt wird
 on:
-  # Löst den Workflow bei jedem Push auf den main-Branch aus
   push:
     branches:
       - main
-  # Ermöglicht das manuelle Starten des Workflows über die GitHub Actions-Oberfläche
   workflow_dispatch:
 
 # Definiert die Aufgaben (Jobs), die im Workflow ausgeführt werden
@@ -16,15 +14,25 @@ jobs:
     # Der Typ des Runners, auf dem der Job ausgeführt wird
     runs-on: ubuntu-latest
 
+    # NEU: Setzt ein Standard-Arbeitsverzeichnis für alle 'run'-Schritte in diesem Job.
+    # Alle Befehle werden nun standardmäßig im Flutter-Projektordner ausgeführt.
+    defaults:
+      run:
+        working-directory: ./cloning_app
+
     # Die einzelnen Schritte des Jobs
     steps:
       # Schritt 1: Das Repository auschecken
-      # Lädt den Code deines Repositories auf den Runner herunter
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # NEUER DEBUGGING-SCHRITT: Zeigt die genaue Verzeichnisstruktur im Log an.
+      # Wir führen dies im Stammverzeichnis aus, um alles zu sehen.
+      - name: List files in the repository
+        run: ls -R
+        working-directory: .
+
       # Schritt 2: Flutter SDK einrichten
-      # Installiert und konfiguriert das Flutter SDK auf dem Runner
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -33,25 +41,20 @@ jobs:
           cache: true
 
       # Schritt 3: Flutter-Abhängigkeiten installieren
-      # Führt 'flutter pub get' aus, um alle im pubspec.yaml definierten Pakete herunterzuladen
+      # Das Arbeitsverzeichnis wird von den 'defaults' oben übernommen.
       - name: Install dependencies
-        # KORREKTUR: Arbeitsverzeichnis auf den Ordner des Flutter-Projekts setzen
-        working-directory: ./cloning_app 
         run: flutter pub get
 
       # Schritt 4: Die Android APK erstellen
-      # Baut die Release-Version der APK
+      # Auch hier wird das Arbeitsverzeichnis von den 'defaults' übernommen.
       - name: Build APK
-        # KORREKTUR: Arbeitsverzeichnis auch für den Build-Befehl setzen
-        working-directory: ./cloning_app
         run: flutter build apk --release
 
       # Schritt 5: Die erstellte APK als Artefakt hochladen
-      # Lädt die generierte APK-Datei hoch, damit du sie nach Abschluss des Workflows herunterladen kannst
+      # Der Pfad zum Artefakt muss weiterhin relativ zum Stammverzeichnis angegeben werden.
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          # KORREKTUR: Der Pfad zum Artefakt muss das Unterverzeichnis enthalten
           path: cloning_app/build/app/outputs/flutter-apk/app-release.apk
 
