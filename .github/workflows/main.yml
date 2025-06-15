@@ -6,7 +6,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch: # Ermöglicht das manuelle Starten des Workflows über die GitHub Actions UI
 
 # Definiert die Aufgaben (Jobs), die im Workflow ausgeführt werden
 jobs:
@@ -14,8 +14,9 @@ jobs:
     # Der Typ des Runners, auf dem der Job ausgeführt wird
     runs-on: ubuntu-latest
 
-    # NEU: Setzt ein Standard-Arbeitsverzeichnis für alle 'run'-Schritte in diesem Job.
-    # Alle Befehle werden nun standardmäßig im Flutter-Projektordner ausgeführt.
+    # Setzt ein Standard-Arbeitsverzeichnis für alle 'run'-Schritte in diesem Job.
+    # Alle Befehle (wie 'flutter pub get' und 'flutter build apk') 
+    # werden nun standardmäßig im Flutter-Projektordner ausgeführt.
     defaults:
       run:
         working-directory: ./cloning_app
@@ -23,38 +24,49 @@ jobs:
     # Die einzelnen Schritte des Jobs
     steps:
       # Schritt 1: Das Repository auschecken
-      - name: Checkout repository
+      # Dies holt deinen Code in den Runner.
+      - name: Repository auschecken
         uses: actions/checkout@v4
 
-      # NEUER DEBUGGING-SCHRITT: Zeigt die genaue Verzeichnisstruktur im Log an.
-      # Wir führen dies im Stammverzeichnis aus, um alles zu sehen.
-      - name: List files in the repository
+      # DEBUGGING-SCHRITT: Zeigt die genaue Verzeichnisstruktur im Log an.
+      # Dies ist sehr nützlich, um zu überprüfen, ob der 'cloning_app'-Ordner 
+      # korrekt im Repository vorhanden ist. Wir führen diesen Schritt 
+      # bewusst aus dem **Stammverzeichnis** des Repositories aus.
+      - name: Dateien im Repository auflisten (Debugging)
         run: ls -R
-        working-directory: .
+        working-directory: . # Wichtig: Diesen Schritt aus dem Repository-Root ausführen
 
       # Schritt 2: Flutter SDK einrichten
-      - name: Set up Flutter
+      # Verwendet die offizielle Flutter Action, um das SDK zu installieren
+      # und einzurichten, inklusive Caching für schnellere Builds.
+      - name: Flutter SDK einrichten
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x' 
-          channel: 'stable'
-          cache: true
+          flutter-version: '3.x' # Verwendet die neueste Version von Flutter 3
+          channel: 'stable'      # Verwendet den stabilen Flutter-Kanal
+          cache: true            # Aktiviert das Caching für das Flutter SDK und Pub-Abhängigkeiten
 
       # Schritt 3: Flutter-Abhängigkeiten installieren
-      # Das Arbeitsverzeichnis wird von den 'defaults' oben übernommen.
-      - name: Install dependencies
+      # Führt 'flutter pub get' aus. Da das Standard-Arbeitsverzeichnis 
+      # auf './cloning_app' gesetzt ist, wird dieser Befehl direkt 
+      # in deinem Flutter-Projektordner ausgeführt.
+      - name: Flutter-Abhängigkeiten installieren
         run: flutter pub get
 
       # Schritt 4: Die Android APK erstellen
-      # Auch hier wird das Arbeitsverzeichnis von den 'defaults' übernommen.
-      - name: Build APK
+      # Erstellt die Release-APK. Auch hier wird der Befehl im 
+      # Standard-Arbeitsverzeichnis './cloning_app' ausgeführt.
+      - name: Android APK erstellen
         run: flutter build apk --release
 
       # Schritt 5: Die erstellte APK als Artefakt hochladen
-      # Der Pfad zum Artefakt muss weiterhin relativ zum Stammverzeichnis angegeben werden.
-      - name: Upload APK artifact
+      # Lädt die generierte APK-Datei hoch, damit du sie nach dem Build 
+      # aus den GitHub Actions herunterladen kannst. Beachte, dass der 
+      # Pfad hier wieder relativ zum **Stammverzeichnis** des Repositories ist, 
+      # da die 'upload-artifact'-Action nicht das 'defaults.run.working-directory' übernimmt.
+      - name: APK-Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: cloning_app/build/app/outputs/flutter-apk/app-release.apk
-
+          
