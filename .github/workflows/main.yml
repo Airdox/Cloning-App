@@ -1,71 +1,56 @@
-# Name des Workflows, der in der GitHub Actions-Oberfläche angezeigt wird
-name: Flutter APK Build (Neu & Diagnostisch)
+name: Flutter APK Build (Diagnose-Fokus)
 
-# Legt fest, wann dieser Workflow ausgeführt wird
 on:
   push:
     branches:
       - main
-  workflow_dispatch: # Ermöglicht das manuelle Starten des Workflows über die GitHub Actions UI
+  workflow_dispatch:
 
-# Definiert die Aufgaben (Jobs), die im Workflow ausgeführt werden
 jobs:
   build:
-    # Der Typ des Runners, auf dem der Job ausgeführt wird
     runs-on: ubuntu-latest
 
-    # Die einzelnen Schritte des Jobs
     steps:
-      # Schritt 1: Das Repository auschecken
-      # Dies holt deinen Code in den Runner.
       - name: Repository auschecken
         uses: actions/checkout@v4
 
-      # --- DIAGNOSE-SCHRITT: EXTREM WICHTIG ZUR FEHLERSUCHE ---
-      # Schritt 2: Zeige die genaue Verzeichnisstruktur nach dem Checkout an.
-      # Diese Ausgabe hilft zu sehen, wo sich dein Flutter-Projekt befindet.
-      - name: Aktuelle Dateien und Ordner im Repository auflisten (DIAGNOSE)
+      ---
+      - name: **DIAGNOSE: Aktuelle Dateien und Ordner auflisten**
+        # Dieser Schritt ist ENTSCHEIDEND. Er zeigt uns, welche Dateien und Ordner
+        # der Runner tatsächlich im Repository sieht, nachdem es ausgecheckt wurde.
         run: |
-          echo "--- Dateien und Ordner im Repository-Root ---"
+          echo "--- Inhalt des Repository-ROOT-Verzeichnisses ---"
           ls -F
           echo ""
-          echo "--- Rekursive Auflistung der Inhalte (bis Tiefe 3) ---"
+          echo "--- Rekursive Auflistung (bis Tiefe 3) nach Checkout ---"
+          # Zeigt die Struktur bis zu 3 Ebenen tief an.
+          # Sucht auch nach 'pubspec.yaml' im gesamten ausgecheckten Bereich.
           find . -maxdepth 3 -print -exec ls -ld {} \;
           echo ""
-          echo "--- Suche nach pubspec.yaml ---"
+          echo "--- Suche nach pubspec.yaml (im gesamten Repository) ---"
           find . -name "pubspec.yaml"
-        working-directory: . # Diesen Schritt IMMER aus dem Repository-Root ausführen
+        working-directory: . # WICHTIG: Diesen Schritt IMMER im Root des Repositories ausführen
 
-      # Schritt 3: Flutter SDK einrichten
-      # Verwendet die offizielle Flutter Action, um das SDK zu installieren.
       - name: Flutter SDK einrichten
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x' # Verwendet die neueste Version von Flutter 3
-          channel: 'stable'      # Verwendet den stabilen Flutter-Kanal
-          cache: true            # Aktiviert das Caching für das Flutter SDK und Pub-Abhängigkeiten
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
 
-      # Schritt 4: Flutter-Abhängigkeiten installieren
-      # Dieser Schritt versucht, 'flutter pub get' im erwarteten 'cloning_app' Ordner auszuführen.
-      # Wenn der Ordner nicht existiert, wird dieser Schritt fehlschlagen.
       - name: Flutter-Abhängigkeiten installieren
-        # Annahme: Das Flutter-Projekt liegt im Ordner 'cloning_app' im Repository-Root.
-        # Sollte der Ordner anders heißen oder direkt im Root liegen, muss 'working-directory' angepasst werden.
+        # Annahme: Der Flutter-Projektordner heißt 'cloning_app' und liegt im Root.
+        # Wenn der Fehler hier auftritt, EXISTIERT 'cloning_app' NICHT an dieser Stelle.
         run: flutter pub get
-        working-directory: ./cloning_app # Dies ist der erwartete Pfad für dein Flutter-Projekt
+        working-directory: ./cloning_app
 
-      # Schritt 5: Die Android APK erstellen
-      # Erstellt die Release-APK, ebenfalls im erwarteten Projektverzeichnis.
       - name: Android APK erstellen
         run: flutter build apk --release
-        working-directory: ./cloning_app # Gleicher Pfad wie für pub get
+        working-directory: ./cloning_app
 
-      # Schritt 6: Die erstellte APK als Artefakt hochladen
-      # Der Pfad muss weiterhin relativ zum Stammverzeichnis des Repositories angegeben werden.
       - name: APK-Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          # Pfad zur APK relativ zum Repository-Root
           path: cloning_app/build/app/outputs/flutter-apk/app-release.apk
           
