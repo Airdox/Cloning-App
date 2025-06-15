@@ -3,20 +3,28 @@ name: Android APK mit BeeWare Briefcase bauen
 on:
   push:
     branches: [ main, develop ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: '3.9'
+  PYTHON_VERSION: '3.11'
   JAVA_VERSION: '17'
-  BRIEFCASE_VERSION: '0.3.14'
+  BRIEFCASE_VERSION: '0.3.17'
   TOGA_VERSION: '0.4.4'
+  ANDROID_API_LEVEL: '34'
+  ANDROID_BUILD_TOOLS: '34.0.0'
+  ANDROID_NDK_VERSION: '25.2.9519653'
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    
+    outputs:
+      apk-name: ${{ steps.build-info.outputs.apk-name }}
+      version: ${{ steps.build-info.outputs.version }}
 
     steps:
     - name: Repository auschecken
@@ -28,8 +36,9 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
 
-    - name: Java JDK einrichten (für Android SDK)
+    - name: Java JDK einrichten
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
@@ -37,57 +46,126 @@ jobs:
 
     - name: Android SDK einrichten
       uses: android-actions/setup-android@v3
-
-    - name: Android SDK Lizenzen akzeptieren
-      run: yes | sdkmanager --licenses
-
-    - name: Pip Cache einrichten
-      uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+        ndk: ${{ env.ANDROID_NDK_VERSION }}
 
-    - name: Briefcase installieren
+    - name: Android SDK Komponenten installieren
+      run: |
+        sdkmanager --install "platforms;android-${{ env.ANDROID_API_LEVEL }}"
+        sdkmanager --install "build-tools;${{ env.ANDROID_BUILD_TOOLS }}"
+        sdkmanager --install "ndk;${{ env.ANDROID_NDK_VERSION }}"
+        yes | sdkmanager --licenses
+
+    - name: Build-Dependencies installieren
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        pip install briefcase==${{ env.BRIEFCASE_VERSION }}
+        pip install briefcase==${{ env.BRIEFCASE_VERSION }} toml
 
-    - name: App-Struktur vorbereiten und Android APK bauen
+    - name: Build-Informationen setzen
+      id: build-info
       run: |
-        set -e
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          VERSION="1.0.0-${GITHUB_SHA::8}"
+        fi
+        APK_NAME="MyPythonApp-${VERSION}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "apk-name=${APK_NAME}" >> $GITHUB_OUTPUT
+        echo "Building version: ${VERSION}"
 
-        # App-Struktur anlegen
+    - name: App-Struktur und Konfiguration erstellen
+      run: |
+        set -euo pipefail
+
+        # Verzeichnisstruktur erstellen
         mkdir -p src/mypythonapp
         touch src/mypythonapp/__init__.py
 
+        # Hauptanwendung erstellen
         cat > src/mypythonapp/app.py <<'EOF'
 import toga
 from toga.style import Pack
-from toga.style.pack import COLUMN
+from toga.style.pack import COLUMN, ROW
 
 class HelloWorld(toga.App):
     def startup(self):
-        main_box = toga.Box(style=Pack(direction=COLUMN))
-        name_label = toga.Label(
-            "Hallo von BeeWare Android App!",
-            style=Pack(padding=(0, 5))
+        """App-Initialisierung"""
+        main_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        
+        # Header
+        header_label = toga.Label(
+            "🐍 BeeWare Android Demo",
+            style=Pack(
+                padding=(0, 5, 10, 5),
+                text_align='center',
+                font_size=18,
+                font_weight='bold'
+            )
         )
-        name_input = toga.TextInput(style=Pack(flex=1))
-        def say_hello(widget):
-            name_input.value = f"Hallo {name_input.value or 'Welt'}!"
+        
+        # Input-Bereich
+        input_box = toga.Box(style=Pack(direction=COLUMN, padding=5))
+        name_label = toga.Label("Name eingeben:", style=Pack(padding=(0, 5)))
+        self.name_input = toga.TextInput(
+            placeholder="Ihr Name...",
+            style=Pack(padding=5, width=250)
+        )
+        
+        # Button-Bereich
+        button_box = toga.Box(style=Pack(direction=ROW, padding=10))
         hello_button = toga.Button(
-            "Sag Hallo",
-            on_press=say_hello,
-            style=Pack(padding=5)
+            "👋 Begrüßung",
+            on_press=self.say_hello,
+            style=Pack(padding=5, flex=1)
         )
-        main_box.add(name_label)
-        main_box.add(name_input)
-        main_box.add(hello_button)
+        clear_button = toga.Button(
+            "🗑️ Löschen",
+            on_press=self.clear_input,
+            style=Pack(padding=5, flex=1)
+        )
+        
+        # Ausgabe-Bereich
+        self.output_label = toga.Label(
+            "Willkommen bei der BeeWare Demo App!",
+            style=Pack(
+                padding=10,
+                text_align='center',
+                font_size=16
+            )
+        )
+        
+        # Layout zusammenbauen
+        input_box.add(name_label)
+        input_box.add(self.name_input)
+        
+        button_box.add(hello_button)
+        button_box.add(clear_button)
+        
+        main_box.add(header_label)
+        main_box.add(input_box)
+        main_box.add(button_box)
+        main_box.add(self.output_label)
+        
+        # Hauptfenster konfigurieren
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = main_box
         self.main_window.show()
+
+    def say_hello(self, widget):
+        """Begrüßung anzeigen"""
+        name = self.name_input.value.strip()
+        if name:
+            self.output_label.text = f"🎉 Hallo {name}! Schön dich zu sehen!"
+        else:
+            self.output_label.text = "👋 Hallo Welt! Gib deinen Namen ein für eine persönliche Begrüßung."
+
+    def clear_input(self, widget):
+        """Input und Output zurücksetzen"""
+        self.name_input.value = ""
+        self.output_label.text = "Bereit für eine neue Eingabe! 😊"
 
 def main():
     return HelloWorld()
@@ -97,10 +175,11 @@ if __name__ == '__main__':
     app.main_loop()
 EOF
 
-        cat > LICENSE <<'EOF'
+        # Lizenz erstellen
+        cat > LICENSE <<EOF
 MIT License
 
-Copyright (c) $(date +%Y) Ihr Name
+Copyright (c) $(date +%Y) BeeWare Demo App
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -121,141 +200,279 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 EOF
 
+        # Projekt-Konfiguration erstellen
         cat > pyproject.toml <<EOF
 [build-system]
 requires = ["briefcase"]
+build-backend = "briefcase"
 
 [project]
 name = "MyPythonApp"
-version = "1.0.0"
-description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
+version = "${{ steps.build-info.outputs.version }}"
+description = "Eine moderne Python-App für Android, gebaut mit BeeWare Briefcase"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Ihr Name", email = "ihre.email@example.com" }
+    { name = "BeeWare Demo", email = "demo@example.com" }
 ]
-keywords = ["mobile", "android", "python", "beeware"]
+keywords = ["mobile", "android", "python", "beeware", "toga"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Operating System :: Android",
 ]
 
 [tool.briefcase]
 project_name = "MyPythonApp"
-bundle = "org.example"
-version = "1.0.0"
-author = "Ihr Name"
-author_email = "ihre.email@example.com"
-url = "https://example.com/mypythonapp"
+bundle = "com.example.mypythonapp"
+version = "${{ steps.build-info.outputs.version }}"
+author = "BeeWare Demo"
+author_email = "demo@example.com"
+url = "https://github.com/${GITHUB_REPOSITORY}"
 license = "MIT"
-requires = []
 
 [tool.briefcase.app.mypythonapp]
 formal_name = "My Python App"
-description = "Eine einfache Python-App für Android"
+description = "BeeWare Android Demo App"
 long_description = """
-Eine Beispiel-Anwendung, die mit BeeWare Briefcase für Android erstellt wurde.
-Diese App demonstriert die grundlegende Struktur einer Python-Android-App.
+Eine moderne Beispiel-Anwendung, die mit BeeWare Briefcase für Android erstellt wurde.
+Diese App demonstriert:
+- Native Android UI mit Toga
+- Python-basierte App-Entwicklung
+- Automatisiertes Building mit GitHub Actions
+- Moderne App-Architektur
 """
 sources = ["src/mypythonapp"]
 main_module = "mypythonapp.app"
-requires = ["toga==${{ env.TOGA_VERSION }}"]
+requires = [
+    "toga==${{ env.TOGA_VERSION }}",
+]
+icon = "resources/icon"
+splash = "resources/splash"
 
 [tool.briefcase.app.mypythonapp.android]
+version_code = ${{ github.run_number }}
+compile_sdk_version = ${{ env.ANDROID_API_LEVEL }}
+target_sdk_version = ${{ env.ANDROID_API_LEVEL }}
+min_sdk_version = 24
 gradle_build_gradle_dependencies = [
     "androidx.appcompat:appcompat:1.6.1",
     "androidx.constraintlayout:constraintlayout:2.1.4",
     "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
+    "androidx.core:core-ktx:1.12.0",
+    "com.google.android.material:material:1.11.0",
 ]
 permissions = [
     "android.permission.INTERNET",
 ]
 
-[tool.briefcase.app.mypythonapp.android.build_gradle_template_context]
-compile_sdk_version = 34
-target_sdk_version = 34
-min_sdk_version = 21
+# Gradle-Template Kontext für erweiterte Konfiguration
+[tool.briefcase.app.mypythonapp.android.gradle_template_context]
+app_name = "My Python App"
+package_name = "com.example.mypythonapp"
 EOF
 
-        cat > README.md <<'EOF'
-# MyPythonApp
+        # README erstellen
+        cat > README.md <<EOF
+# 🐍 MyPythonApp
 
-Eine einfache Python-Anwendung, erstellt mit BeeWare Briefcase für Android.
+Eine moderne Python-Anwendung für Android, erstellt mit BeeWare Briefcase.
 
-## Build-Status
+![Build Status](https://github.com/${GITHUB_REPOSITORY}/workflows/Android%20APK%20mit%20BeeWare%20Briefcase%20bauen/badge.svg)
 
-Diese App wird automatisch mit GitHub Actions gebaut.
+## 📱 Features
 
-## Installation
+- Native Android UI mit Python
+- Moderne Material Design Elemente
+- Automatisierte CI/CD Pipeline
+- Cross-Platform Entwicklung
 
-Die APK-Datei kann aus den GitHub Actions Artifacts heruntergeladen werden.
+## 🚀 Installation
+
+Die neueste APK kann aus den [GitHub Releases](https://github.com/${GITHUB_REPOSITORY}/releases) heruntergeladen werden.
+
+## 🛠️ Entwicklung
+
+Diese App verwendet:
+- **Python ${PYTHON_VERSION}**
+- **BeeWare Briefcase ${BRIEFCASE_VERSION}**
+- **Toga ${TOGA_VERSION}**
+- **Android API Level ${ANDROID_API_LEVEL}**
+
+## 📦 Build
+
+Das Projekt wird automatisch mit GitHub Actions gebaut bei jedem Push und Pull Request.
+
+### Lokaler Build
+
+\`\`\`bash
+pip install briefcase==${BRIEFCASE_VERSION}
+briefcase create android
+briefcase build android
+briefcase package android
+\`\`\`
+
+## 📄 Lizenz
+
+MIT License - siehe [LICENSE](LICENSE) für Details.
 EOF
 
-        echo "pyproject.toml Inhalt:"
-        cat pyproject.toml
+    - name: Briefcase Cache einrichten
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.briefcase
+          ~/.gradle/caches
+          ~/.android/build-cache
+        key: briefcase-${{ runner.os }}-${{ env.BRIEFCASE_VERSION }}-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          briefcase-${{ runner.os }}-${{ env.BRIEFCASE_VERSION }}-
+          briefcase-${{ runner.os }}-
 
-        # Clean build-Verzeichnisse
-        rm -rf ~/.briefcase build android dist
-
-        # Syntax-Check für pyproject.toml
+    - name: Konfiguration validieren
+      run: |
         python -c "
+import toml
 import sys
-try:
-    import toml
-except ImportError:
-    import subprocess
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'toml'])
-    import toml
 
-with open('pyproject.toml', 'r') as f:
-    config = toml.load(f)
-print('✓ pyproject.toml ist gültig')
+try:
+    with open('pyproject.toml', 'r', encoding='utf-8') as f:
+        config = toml.load(f)
+    print('✅ pyproject.toml ist gültig')
+    print(f'📦 Projekt: {config[\"project\"][\"name\"]} v{config[\"project\"][\"version\"]}')
+    print(f'📱 Bundle ID: {config[\"tool\"][\"briefcase\"][\"bundle\"]}')
+except Exception as e:
+    print(f'❌ Fehler in pyproject.toml: {e}')
+    sys.exit(1)
 "
 
-        # Briefcase Schritte
-        briefcase create android -v
-        briefcase build android -v
+    - name: Android APK erstellen
+      run: |
+        set -euo pipefail
+        
+        echo "🏗️ Starte Briefcase Build-Prozess..."
+        
+        # Clean vorherige Builds
+        rm -rf ~/.briefcase/projects/*/android/
+        rm -rf build/ dist/ android/
+        
+        # Briefcase Schritte mit detailliertem Logging
+        echo "📱 Erstelle Android Projekt..."
+        briefcase create android --no-input -v
+        
+        echo "🔨 Baue Android APK..."
+        briefcase build android --no-input -v
+        
+        echo "📦 Erstelle APK Package..."
+        briefcase package android --adhoc-sign --no-input -v
 
-        # APK suchen und in einen festen Ordner kopieren
-        mkdir -p artifact
+    - name: APK lokalisieren und aufbereiten
+      id: locate-apk
+      run: |
+        set -euo pipefail
+        
+        # APK-Dateien finden
+        echo "🔍 Suche APK-Dateien..."
+        find . -name "*.apk" -type f -exec ls -la {} \;
+        
+        # Primäre APK finden
         APK_PATH=$(find . -name "*.apk" -type f | head -1)
+        
         if [ -z "$APK_PATH" ]; then
-          echo "FEHLER: APK-Datei nicht gefunden."
-          find . -name "*.apk" -o -name "*.aab" -o -name "*debug*" | head -20
+          echo "❌ Keine APK-Datei gefunden!"
+          echo "Verfügbare Dateien:"
+          find . -type f -name "*.*" | grep -E "\.(apk|aab)$" || echo "Keine APK/AAB Dateien gefunden"
           exit 1
         fi
-        cp "$APK_PATH" artifact/
-        echo "APK erfolgreich in artifact/ kopiert: ${APK_PATH}"
-
-    - name: Build-Logs hochladen
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: build-logs
-        path: |
-          ~/.briefcase/logs/
-          android/
-        retention-days: 3
+        
+        # APK-Informationen
+        APK_SIZE=$(stat -f%z "$APK_PATH" 2>/dev/null || stat -c%s "$APK_PATH")
+        APK_SIZE_MB=$((APK_SIZE / 1024 / 1024))
+        
+        echo "✅ APK gefunden:"
+        echo "📁 Pfad: $APK_PATH"
+        echo "📏 Größe: ${APK_SIZE_MB}MB"
+        
+        # Ausgabe-Verzeichnis vorbereiten
+        mkdir -p artifacts
+        
+        # APK mit aussagekräftigem Namen kopieren
+        FINAL_APK_NAME="${{ steps.build-info.outputs.apk-name }}-android.apk"
+        cp "$APK_PATH" "artifacts/$FINAL_APK_NAME"
+        
+        # Ausgabe für weitere Steps
+        echo "apk-path=artifacts/$FINAL_APK_NAME" >> $GITHUB_OUTPUT
+        echo "apk-size-mb=$APK_SIZE_MB" >> $GITHUB_OUTPUT
+        
+        echo "🎉 APK erfolgreich vorbereitet: artifacts/$FINAL_APK_NAME"
 
     - name: APK-Artefakt hochladen
       uses: actions/upload-artifact@v4
-      if: success()
       with:
-        name: MyPythonApp-Android-APK
-        path: artifact/
+        name: ${{ steps.build-info.outputs.apk-name }}-Android-APK
+        path: artifacts/
         retention-days: 30
+        compression-level: 1
 
-    - name: Release erstellen
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v1
+    - name: Build-Logs bei Fehlern hochladen
+      uses: actions/upload-artifact@v4
+      if: failure()
       with:
-        files: artifact/*.apk
+        name: build-logs-${{ github.run_number }}
+        path: |
+          ~/.briefcase/logs/
+          android/*/build/outputs/logs/
+          build/
+        retention-days: 7
+
+    - name: GitHub Release erstellen
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: artifacts/*.apk
         draft: false
         prerelease: false
+        generate_release_notes: true
+        body: |
+          ## 📱 Android APK Release
+          
+          **Version:** ${{ steps.build-info.outputs.version }}
+          **APK-Größe:** ${{ steps.locate-apk.outputs.apk-size-mb }}MB
+          **Build:** #${{ github.run_number }}
+          
+          ### 🚀 Installation
+          
+          1. APK-Datei herunterladen
+          2. "Unbekannte Quellen" in Android-Einstellungen aktivieren
+          3. APK installieren
+          
+          ### 🛠️ Build-Informationen
+          
+          - Python ${{ env.PYTHON_VERSION }}
+          - BeeWare Briefcase ${{ env.BRIEFCASE_VERSION }}
+          - Toga ${{ env.TOGA_VERSION }}
+          - Android API Level ${{ env.ANDROID_API_LEVEL }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Build-Zusammenfassung
+      run: |
+        echo "## 🎉 Build erfolgreich abgeschlossen!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** ${{ steps.build-info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**APK-Name:** ${{ steps.build-info.outputs.apk-name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**APK-Größe:** ${{ steps.locate-apk.outputs.apk-size-mb }}MB" >> $GITHUB_STEP_SUMMARY
+        echo "**Build-Nummer:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Artefakte" >> $GITHUB_STEP_SUMMARY
+        echo "- Android APK verfügbar in den Workflow-Artefakten" >> $GITHUB_STEP_SUMMARY
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          echo "- Release wurde automatisch erstellt" >> $GITHUB_STEP_SUMMARY
+        fi
