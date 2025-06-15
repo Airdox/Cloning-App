@@ -28,19 +28,22 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          # Du kannst hier eine spezifische Flutter-Version angeben, falls nötig
           flutter-version: '3.x' 
           channel: 'stable'
-          cache: true # Aktiviert das Caching zur Beschleunigung zukünftiger Builds
+          cache: true
 
       # Schritt 3: Flutter-Abhängigkeiten installieren
       # Führt 'flutter pub get' aus, um alle im pubspec.yaml definierten Pakete herunterzuladen
       - name: Install dependencies
+        # KORREKTUR: Arbeitsverzeichnis auf den Ordner des Flutter-Projekts setzen
+        working-directory: ./cloning_app 
         run: flutter pub get
 
       # Schritt 4: Die Android APK erstellen
-      # Baut die Release-Version der APK. Das Ergebnis wird im Verzeichnis build/app/outputs/flutter-apk/app-release.apk gespeichert
+      # Baut die Release-Version der APK
       - name: Build APK
+        # KORREKTUR: Arbeitsverzeichnis auch für den Build-Befehl setzen
+        working-directory: ./cloning_app
         run: flutter build apk --release
 
       # Schritt 5: Die erstellte APK als Artefakt hochladen
@@ -49,5 +52,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          
+          # KORREKTUR: Der Pfad zum Artefakt muss das Unterverzeichnis enthalten
+          path: cloning_app/build/app/outputs/flutter-apk/app-release.apk
+
