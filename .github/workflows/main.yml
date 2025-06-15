@@ -14,10 +14,10 @@ jobs:
       - name: Repository auschecken
         uses: actions/checkout@v4
 
-      ---
-      - name: **DIAGNOSE: Aktuelle Dateien und Ordner auflisten**
-        # Dieser Schritt ist ENTSCHEIDEND. Er zeigt uns, welche Dateien und Ordner
-        # der Runner tatsächlich im Repository sieht, nachdem es ausgecheckt wurde.
+      # --- DIAGNOSE-SCHRITT: EXTREM WICHTIG ZUR FEHLERSUCHE ---
+      # Dieser Schritt ist ENTSCHEIDEND. Er zeigt uns, welche Dateien und Ordner
+      # der Runner tatsächlich im Repository sieht, nachdem es ausgecheckt wurde.
+      - name: DIAGNOSE:Aktuelle Dateien und Ordner auflisten
         run: |
           echo "--- Inhalt des Repository-ROOT-Verzeichnisses ---"
           ls -F
