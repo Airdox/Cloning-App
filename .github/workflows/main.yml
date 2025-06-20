@@ -17,7 +17,7 @@ jobs:
       # --- DIAGNOSE-SCHRITT: EXTREM WICHTIG ZUR FEHLERSUCHE ---
       # Dieser Schritt ist ENTSCHEIDEND. Er zeigt uns, welche Dateien und Ordner
       # der Runner tatsächlich im Repository sieht, nachdem es ausgecheckt wurde.
-      - name: DIAGNOSE:Aktuelle Dateien und Ordner auflisten
+      - name: DIAGNOSE: Aktuelle Dateien und Ordner auflisten
         run: |
           echo "--- Inhalt des Repository-ROOT-Verzeichnisses ---"
           ls -F
@@ -39,18 +39,22 @@ jobs:
           cache: true
 
       - name: Flutter-Abhängigkeiten installieren
-        # Annahme: Der Flutter-Projektordner heißt 'cloning_app' und liegt im Root.
-        # Wenn der Fehler hier auftritt, EXISTIERT 'cloning_app' NICHT an dieser Stelle.
+        # NEUE ANNAHME: pubspec.yaml ist direkt im Root des Repositories.
+        # Daher ist kein spezifisches "working-directory" mehr nötig,
+        # da der Standard das Repository-Root ist.
         run: flutter pub get
-        working-directory: ./cloning_app
+        # working-directory: . <-- Standard, kann weggelassen werden
 
       - name: Android APK erstellen
+        # NEUE ANNAHME: pubspec.yaml ist direkt im Root des Repositories.
+        # Daher ist kein spezifisches "working-directory" mehr nötig.
         run: flutter build apk --release
-        working-directory: ./cloning_app
+        # working-directory: . <-- Standard, kann weggelassen werden
 
       - name: APK-Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: cloning_app/build/app/outputs/flutter-apk/app-release.apk
-          
+          # NEUER PFAD: build/app/outputs/flutter-apk/app-release.apk
+          # weil sich das Projekt-Root nicht mehr unter 'cloning_app/' befindet.
+          path: build/app/outputs/flutter-apk/app-release.apk
