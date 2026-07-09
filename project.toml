@@ -1,27 +1,45 @@
 [project]
-name = "MyPythonApp"
-version = "1.0.0"
-description = "Eine einfache Python-App, gebaut mit BeeWare Briefcase."
-requires-python = ">=3.9"
-license = { file = "LICENSE" } # PEP 621 Lizenzdefinition
+name = "VoiceCloningApp"
+version = "0.2.0"
+description = "A secure voice cloning application with modern security practices."
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+    {name = "Voice Cloning Team", email = "security@voicecloning.example.com"}
+]
+keywords = ["voice", "cloning", "security", "kivy", "mobile"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Security",
+]
 
 [tool.briefcase]
-project_name = "MyPythonApp"
-bundle = "org.example" 
-author = "Ihr Name"
-author_email = "ihre.email@example.com"
-url = "https://example.com/mypythonapp"
-requires = [] 
+project_name = "VoiceCloningApp"
+bundle = "com.secure.voicecloning"
+author = "Voice Cloning Team"
+author_email = "security@voicecloning.example.com"
+url = "https://github.com/secure-voice-cloning/app"
+description = "A secure voice cloning application with modern security practices."
+requires = [
+    "kivy>=2.2.0",
+    "cryptography>=41.0.0",
+]
 
-[tool.briefcase.app.mypythonapp] 
-sources = ["."] 
-main_module = "mypythonapp" 
-long_description = "Eine ausführlichere Beschreibung Ihrer Anwendung."
+[tool.briefcase.app.voicecloningapp]
+sources = ["."]
+main_module = "main_apk"
+long_description = "A comprehensive voice cloning application that prioritizes security and user privacy. Features secure file handling, input validation, and modern encryption standards."
 
-[tool.briefcase.app.mypythonapp.android]
+[tool.briefcase.app.voicecloningapp.android]
 target_device = "generic"
-sdk_version = "34" 
-min_sdk_version = "21"
+sdk_version = "34"
+min_sdk_version = "26"
 build_tools_version = "34.0.0"
-supported_abis = ["arm64-v8a"]
-permissions = []
+supported_abis = ["arm64-v8a", "armeabi-v7a"]
+permissions = ["android.permission.READ_EXTERNAL_STORAGE"]
+features = ["android.hardware.microphone"]
